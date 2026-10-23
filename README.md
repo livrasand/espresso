@@ -1,6 +1,8 @@
-# Espresso
+# <img src="./web/openbin-mark.svg" width="32" height="32" style="vertical-align: middle;" /> Espresso
 
 **Your Git forge. Even on an ESP32.**
+
+<img width="1920" height="877" alt="Espresso Official Website" src="https://github.com/user-attachments/assets/6ec959f9-8dc0-4d2f-9bea-cc79682e50c6" />
 
 Your projects deserve a home of their own.
 
