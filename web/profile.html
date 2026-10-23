@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Your Espresso profile — avatar, bio, and node activity.">
+  <title>Profile · Espresso</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/profile.css">
+  <script>
+    document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';
+  </script>
+  <script src="/auth-client.js" defer></script>
+  <script src="/profile.js" defer></script>
+</head>
+<body class="profile-page">
+  <header class="profile-topbar">
+    <a class="profile-brand" href="/" aria-label="Espresso home">
+      <img src="/openbin-mark.svg" alt="" class="profile-brand-mark">
+      <span class="profile-brand-name">Espresso</span>
+    </a>
+    <nav class="profile-topnav" aria-label="Primary">
+      <a class="profile-topnav-link" href="/dashboard">Repositories</a>
+      <a class="profile-topnav-link is-active" href="/profile">Profile</a>
+    </nav>
+    <div class="profile-account" id="profile-account"></div>
+  </header>
+
+  <main class="profile-main">
+    <p id="profile-status" class="profile-status" role="status"></p>
+
+    <button id="profile-create" type="button" class="button button-primary profile-create" hidden>
+      Create profile
+    </button>
+
+    <div id="profile-layout" class="profile-layout" hidden>
+      <aside class="profile-rail">
+        <div class="profile-avatar-wrap">
+          <img id="profile-avatar" class="profile-avatar" alt="" hidden>
+          <div id="profile-avatar-fallback" class="profile-avatar-fallback" aria-hidden="true"></div>
+        </div>
+        <h1 id="profile-display-name" class="profile-display-name">Anonymous</h1>
+        <p id="profile-username" class="profile-username"></p>
+        <p id="profile-bio" class="profile-bio"></p>
+        <div id="profile-links" class="profile-links"></div>
+        <dl class="profile-meta">
+          <div class="profile-meta-row">
+            <dt>Joined</dt>
+            <dd id="profile-joined">—</dd>
+          </div>
+          <div class="profile-meta-row">
+            <dt>Nodes</dt>
+            <dd id="profile-nodes">0</dd>
+          </div>
+          <div class="profile-meta-row">
+            <dt>Repositories</dt>
+            <dd id="profile-repos">0</dd>
+          </div>
+        </dl>
+        <button id="profile-edit-toggle" type="button" class="button button-secondary profile-edit-toggle" hidden>
+          Edit profile
+        </button>
+      </aside>
+
+      <section class="profile-body">
+        <div class="profile-section-head">
+          <h2 class="profile-section-title">Activity</h2>
+          <span id="profile-activity-total" class="profile-section-note"></span>
+        </div>
+        <div class="profile-heatmap" id="profile-heatmap" aria-label="Contribution activity">
+          <div id="profile-heatmap-grid" class="profile-heatmap-grid"></div>
+          <div class="profile-heatmap-legend">
+            <span>Less</span>
+            <span class="profile-heat-cell is-level-0"></span>
+            <span class="profile-heat-cell is-level-1"></span>
+            <span class="profile-heat-cell is-level-2"></span>
+            <span class="profile-heat-cell is-level-3"></span>
+            <span class="profile-heat-cell is-level-4"></span>
+            <span>More</span>
+          </div>
+          <p id="profile-heatmap-note" class="profile-heatmap-note"></p>
+        </div>
+
+        <div id="profile-editor" class="profile-editor" hidden>
+          <div class="profile-section-head">
+            <h2 class="profile-section-title">Edit profile</h2>
+          </div>
+          <form id="profile-form" class="profile-form">
+            <label class="profile-field">
+              <span class="profile-field-label">Display name</span>
+              <input id="profile-input-display" type="text" maxlength="64" autocomplete="name">
+            </label>
+            <label class="profile-field">
+              <span class="profile-field-label">Bio</span>
+              <textarea id="profile-input-bio" maxlength="280" rows="3"></textarea>
+            </label>
+            <label class="profile-field">
+              <span class="profile-field-label">Avatar URL</span>
+              <input id="profile-input-avatar" type="url" placeholder="https://…">
+              <small class="profile-field-hint">Tip: upload an image to catbox.moe (or any host) and paste the URL.</small>
+            </label>
+            <label class="profile-field">
+              <span class="profile-field-label">Links (comma-separated URLs)</span>
+              <input id="profile-input-links" type="text" placeholder="https://github.com/you, https://yoursite.com">
+            </label>
+            <div class="profile-form-actions">
+              <button type="submit" class="button" id="profile-save">Save</button>
+              <button type="button" class="button button-secondary" id="profile-cancel">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <p id="profile-guest" class="profile-guest" hidden>
+          <a href="/login">Sign in</a> to create your Espresso profile.
+        </p>
+      </section>
+    </div>
+  </main>
+
+</body>
+</html>

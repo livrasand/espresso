@@ -1,0 +1,28 @@
+# Environments / secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Build output
+/Espresso
+/server
+/bin/
+dist/
+
+# Node
+node_modules/
+# (packages/node-server keeps its own .env.example)
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Firmware build artifacts
+firmware/.pio/

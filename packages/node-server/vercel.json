@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": true,
+  "functions": {
+    "api/main.ts": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/main" },
+    { "source": "/node/:path*", "destination": "/api/main" },
+    { "source": "/health", "destination": "/api/main" },
+    { "source": "/metrics", "destination": "/api/main" }
+  ]
+}

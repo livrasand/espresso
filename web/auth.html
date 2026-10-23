@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Sign in to Espresso with your account number.">
+  <title>Sign in · Espresso</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <script>
+    document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';
+  </script>
+  <script src="/auth-client.js"></script>
+  <style>
+    .auth-content {
+      width: min(100%, 26rem);
+      text-align: left;
+    }
+
+    .auth-logo {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1.75rem;
+    }
+
+    .auth-logo a {
+      display: inline-flex;
+      border-radius: 50%;
+      outline-offset: 4px;
+    }
+
+    .auth-logo-image {
+      width: 3.5rem;
+      height: 3.5rem;
+    }
+
+    .auth-card {
+      border: 1px solid var(--color-surface-light);
+      background: var(--color-surface);
+      padding: 2rem;
+    }
+
+    .auth-head h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.01em;
+      text-align: center;
+    }
+
+    .auth-head p {
+      margin: 0 auto 1.75rem;
+      max-width: 26rem;
+      color: var(--color-muted);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .auth-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .auth-form label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+    }
+
+    .auth-form input {
+      width: 100%;
+      height: 2.75rem;
+      padding: 0 0.9rem;
+      background: var(--color-background);
+      border: 1px solid var(--color-surface-light);
+      color: var(--color-main);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.9375rem;
+      letter-spacing: 0.12em;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
+      box-sizing: border-box;
+    }
+
+    .auth-form input::placeholder {
+      color: var(--color-muted);
+      letter-spacing: 0.12em;
+    }
+
+    .auth-form input:focus {
+      outline: none;
+      border-color: #f76f53;
+      box-shadow: 0 0 0 2px rgba(247, 111, 83, 0.25);
+    }
+
+    .auth-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .auth-actions .button {
+      flex: 1 1 9rem;
+      height: 2.75rem;
+      padding: 0 1rem;
+    }
+
+    .auth-known {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--color-surface-light);
+      background: var(--color-background);
+    }
+
+    .auth-known:empty { display: none; }
+
+    .auth-known-title {
+      margin: 0;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+    }
+
+    .auth-known-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .auth-known-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .auth-known-account {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 0.3rem 0.2rem;
+      border: 0;
+      background: none;
+      color: var(--color-main);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.875rem;
+      letter-spacing: 0.1em;
+      text-align: left;
+      cursor: pointer;
+      transition: color 150ms ease;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .auth-known-account:hover { color: #f76f53; }
+
+    .auth-known-forget {
+      flex: 0 0 auto;
+      padding: 0.3rem 0.5rem;
+      border: 0;
+      background: none;
+      color: var(--color-muted);
+      font-size: 0.6875rem;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: color 150ms ease;
+    }
+
+    .auth-known-forget:hover { color: #ff6b52; }
+
+    .auth-status {
+      min-height: 1.1rem;
+      margin: 0;
+      font-size: 0.75rem;
+      line-height: 1.5;
+      color: var(--color-muted);
+      text-align: center;
+    }
+
+    .auth-status.err { color: #ff6b52; }
+
+    .auth-session {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: center;
+      margin: 0;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--color-surface-light);
+      background: var(--color-background);
+      font-size: 0.75rem;
+      color: var(--color-muted);
+      line-height: 1.5;
+      text-align: center;
+      word-break: break-all;
+    }
+
+    .auth-session:empty { display: none; }
+
+    .auth-session .auth-session-account {
+      color: var(--color-main);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.9375rem;
+      letter-spacing: 0.12em;
+    }
+
+    .auth-session .button {
+      height: 2.25rem;
+      padding: 0 1.25rem;
+    }
+
+    .auth-foot {
+      margin: 1.75rem 0 0;
+      color: var(--color-muted);
+      font-size: 0.6875rem;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .auth-foot code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    @media (max-width: 420px) {
+      .auth-card { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body class="landing-page">
+  <section class="landing-shell">
+    <main class="landing-main">
+      <div class="auth-content">
+        <div class="auth-logo">
+          <a href="/" aria-label="Back to Espresso">
+            <img
+              src="/openbin-mark.svg"
+              alt="Espresso logo"
+              class="auth-logo-image"
+            >
+          </a>
+        </div>
+
+        <div class="auth-card">
+          <div class="auth-head">
+            <h1>Sign in</h1>
+            <p>
+              One account number, no passwords. Create an account to keep your
+              number, or sign in with an existing one — the number is the sole
+              credential, so keep it safe.
+            </p>
+          </div>
+
+          <form id="auth-actions" class="auth-form">
+            <div class="auth-field">
+              <label for="account">Account number</label>
+              <input
+                id="account"
+                name="account"
+                inputmode="numeric"
+                autocomplete="off"
+                placeholder="0000 0000 0000 0000"
+                maxlength="19"
+              >
+            </div>
+            <div class="auth-actions">
+              <button id="btn-login" type="submit" class="button button-primary">
+                Sign in
+              </button>
+              <button id="btn-create" type="button" class="button button-secondary">
+                Create account
+              </button>
+            </div>
+            <p id="status" class="auth-status" role="status"></p>
+            <p id="session" class="auth-session"></p>
+            <div id="known" class="auth-known" hidden>
+              <p class="auth-known-title">Your accounts</p>
+              <ul id="known-list" class="auth-known-list"></ul>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <script>
+    (function () {
+      'use strict';
+      const $ = (id) => document.getElementById(id);
+      const statusEl = $('status'), sessionEl = $('session');
+      const knownEl = $('known'), knownListEl = $('known-list');
+
+      function setStatus(msg, err) {
+        statusEl.textContent = msg || '';
+        statusEl.classList.toggle('err', !!err);
+      }
+
+      function renderKnown() {
+        const list = window.EspressoAuth.knownAccounts();
+        knownEl.hidden = list.length === 0;
+        knownListEl.innerHTML = list.map((e) =>
+          '<li class="auth-known-row">' +
+            '<button type="button" class="auth-known-account" data-account="' +
+              escapeHtml(e.account) + '" title="Use this account">' +
+              escapeHtml(window.EspressoAuth.formatAccount(e.account)) +
+            '</button>' +
+            '<button type="button" class="auth-known-forget" data-forget="' +
+              escapeHtml(e.account) + '" aria-label="Forget this account">Forget</button>' +
+          '</li>'
+        ).join('');
+      }
+
+      knownListEl.addEventListener('click', (e) => {
+        const use = e.target.closest('[data-account]');
+        if (use) {
+          $('account').value = window.EspressoAuth.formatAccount(use.dataset.account);
+          setStatus('Account number filled in — press Sign in.');
+          return;
+        }
+        const forget = e.target.closest('[data-forget]');
+        if (forget) {
+          window.EspressoAuth.forgetAccount(forget.dataset.forget);
+          renderKnown();
+        }
+      });
+
+      function refreshSession() {
+        const s = window.EspressoAuth.session();
+        if (s.token) {
+          sessionEl.innerHTML = 'Signed in as account' +
+            '<span class="auth-session-account">' +
+            escapeHtml(s.account || '(unknown)') +
+            '</span>';
+        } else {
+          sessionEl.textContent = '';
+        }
+      }
+
+      function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+      }
+
+      function done(body) {
+        window.EspressoAuth.saveSession(body.account, body.session_token);
+        renderKnown();
+        setStatus('Signed in as ' + body.account);
+        refreshSession();
+        window.location.assign('/dashboard');
+      }
+
+      $('auth-actions').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const digits = $('account').value.replace(/\D/g, '');
+        if (digits.length === 0) { setStatus('Enter your account number.', true); return; }
+        try {
+          setStatus('Signing in…');
+          done(await window.EspressoAuth.login(digits));
+        } catch (err) {
+          setStatus(err.message || 'Sign-in failed.', true);
+        }
+      });
+
+      $('btn-create').addEventListener('click', async () => {
+        try {
+          setStatus('Creating account…');
+          done(await window.EspressoAuth.mintAccount());
+        } catch (err) {
+          setStatus(err.message || 'Account creation failed.', true);
+        }
+      });
+
+      refreshSession();
+      renderKnown();
+    })();
+  </script>
+</body>
+</html>

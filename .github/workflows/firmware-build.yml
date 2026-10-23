@@ -1,0 +1,108 @@
+name: Firmware Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Release tag (for example, v0.1.0)
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      platform:
+        required: true
+        type: string
+      pio_env:
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  pio-build:
+    name: build-${{ inputs.platform }}
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-id: ${{ steps.upload-firmware.outputs.artifact-id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build ${{ inputs.platform }}
+        id: build
+        run: |
+          cd firmware
+          pio run -e ${{ inputs.pio_env }}
+
+      - name: Prepare firmware package
+        id: package
+        run: |
+          mkdir -p firmware/release
+          cp firmware/.pio/build/${{ inputs.pio_env }}/firmware.bin firmware/release/
+          cp firmware/.pio/build/${{ inputs.pio_env }}/bootloader.bin firmware/release/
+          cp firmware/.pio/build/${{ inputs.pio_env }}/partitions.bin firmware/release/
+
+          cd firmware/release
+          sha256sum firmware.bin bootloader.bin partitions.bin > SHA256SUMS
+
+      - name: Job summary
+        run: |
+          echo "## ${{ inputs.pio_env }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Firmware" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat firmware/release/SHA256SUMS >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Sanitize version
+        id: sanitize
+        run: echo "version=${VERSION//\//-}" >> "$GITHUB_OUTPUT"
+        env:
+          VERSION: ${{ inputs.version }}
+
+      - name: Upload firmware artifact
+        id: upload-firmware
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: "firmware-${{ inputs.platform }}-${{ inputs.pio_env }}-${{ steps.sanitize.outputs.version }}"
+          overwrite: true
+          path: |
+            firmware/release/*.bin
+            firmware/release/SHA256SUMS
+
+  publish:
+    needs: pio-build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Prepare release assets and checksums
+        run: |
+          mkdir release
+          find dist -type f \( -iname '*.bin' -o -iname 'SHA256SUMS' \) -exec cp {} release/ \;
+          test -n "$(find release -type f -print -quit)"
+          (cd release && sha256sum * > SHA256SUMS)
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ inputs.tag_name }}
+        run: gh release create "$TAG_NAME" release/* --target "$GITHUB_SHA" --title "$TAG_NAME" --generate-notes
