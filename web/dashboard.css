@@ -71,24 +71,72 @@
   font-weight: 600;
 }
 
-.dash-account {
+.dash-account-wrap {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  position: relative;
   margin-left: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
   color: var(--color-muted);
 }
 
-.dash-account a {
-  color: #f76f53;
-  text-decoration: none;
+.dash-account-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: 1px solid var(--color-surface-light);
+  color: inherit;
+  padding: 0.3rem 0.6rem;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 0;
 }
 
-.dash-account a:hover,
-.dash-account a:focus-visible {
-  text-decoration: underline;
+.dash-account-trigger:hover,
+.dash-account-trigger:focus-visible {
+  border-color: var(--color-main);
+  color: var(--color-main);
+}
+
+.dash-account-arrow {
+  font-size: 0.6rem;
+  line-height: 1;
+}
+
+.dash-account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  min-width: 12rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-light);
+  color: var(--color-main);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  z-index: 60;
+}
+
+.dash-account-menu[hidden] { display: none; }
+
+.dash-account-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  color: inherit;
+  text-decoration: none;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.dash-account-item:hover,
+.dash-account-item:focus-visible {
+  background: var(--color-surface-light);
+  color: #f76f53;
 }
 
 /* Shell */
@@ -385,6 +433,14 @@
   color: inherit;
   font-family: monospace;
   text-transform: uppercase;
+}
+.dash-create-repo-input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--color-surface-light, #2a2a2a);
+  border-radius: 0;
+  background: var(--color-surface, #1a1a1a);
+  color: inherit;
+  font-family: monospace;
 }
 .dash-pair-submit {
   margin-top: 0.35rem;

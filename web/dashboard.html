@@ -23,10 +23,19 @@
     <nav class="dash-topnav" aria-label="Primary">
       <a class="dash-topnav-link is-active" href="/dashboard">Repositories</a>
       <a class="dash-topnav-link" href="/profile">Profile</a>
+      <a class="dash-topnav-link" href="/docs">API docs</a>
     </nav>
-    <button id="dash-token-open" type="button" class="dash-token-open" title="Generate or copy a session token">Token</button>
-    <button id="dash-create-repo" type="button" class="dash-create-repo" title="Create a new repository on the selected node">New repository</button>
-    <div class="dash-account" id="dash-account"></div>
+    <div class="dash-account-wrap" id="dash-account-wrap">
+      <button type="button" id="dash-account-trigger" class="dash-account-trigger" aria-haspopup="true" aria-expanded="false">
+        <span id="dash-account-value">—</span>
+        <span class="dash-account-arrow">▾</span>
+      </button>
+      <div id="dash-account-menu" class="dash-account-menu" hidden>
+        <button id="dash-token-open" type="button" class="dash-account-item" title="Generate or copy a session token">Token</button>
+        <button id="dash-create-repo" type="button" class="dash-account-item" title="Create a new repository on the selected node">New repository</button>
+        <a href="/login" data-action="logout" class="dash-account-item">Sign out</a>
+      </div>
+    </div>
   </header>
 
   <div class="dash-shell">
@@ -95,11 +104,11 @@
         <h2 class="dash-pair-title">Create repository</h2>
         <form id="dash-create-repo-form" class="dash-pair-form">
           <label class="dash-pair-label" for="dash-create-repo-node">Node</label>
-          <select id="dash-create-repo-node" class="dash-pair-input"></select>
+          <select id="dash-create-repo-node" class="dash-create-repo-input"></select>
           <label class="dash-pair-label" for="dash-create-repo-name">Repository name</label>
-          <input id="dash-create-repo-name" class="dash-pair-input" type="text" autocomplete="off" spellcheck="false" placeholder="my-repo" required>
+          <input id="dash-create-repo-name" class="dash-create-repo-input" type="text" autocomplete="off" spellcheck="false" placeholder="my-repo" required>
           <label class="dash-pair-label" for="dash-create-repo-desc">Description</label>
-          <input id="dash-create-repo-desc" class="dash-pair-input" type="text" placeholder="My repository description">
+          <input id="dash-create-repo-desc" class="dash-create-repo-input" type="text" placeholder="My repository description">
           <button id="dash-create-repo-submit" type="button" class="button button-primary dash-create-repo-submit">Create</button>
         </form>
         <p id="dash-create-repo-status" class="dash-pair-status" role="status"></p>

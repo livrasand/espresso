@@ -16,7 +16,10 @@
   const API = '';
 
   const el = {
-    account: document.getElementById('dash-account'),
+    accountWrap: document.getElementById('dash-account-wrap'),
+    accountTrigger: document.getElementById('dash-account-trigger'),
+    accountValue: document.getElementById('dash-account-value'),
+    accountMenu: document.getElementById('dash-account-menu'),
     nodelist: document.getElementById('dash-nodelist'),
     nodelistEmpty: document.getElementById('dash-nodelist-empty'),
     refresh: document.getElementById('dash-refresh'),
@@ -104,13 +107,12 @@
   function renderAccount() {
     const s = Auth.session();
     if (s.account) {
-      el.account.innerHTML =
-        esc(s.account) +
-        ' <a href="/login" data-action="logout">logout</a>';
+      el.accountValue.textContent = esc(s.account);
+      el.accountTrigger.setAttribute('aria-expanded', 'false');
+      el.accountMenu.hidden = true;
+      el.accountWrap.hidden = false;
     } else {
-      el.account.innerHTML =
-        '<span class="dash-account-label">Not signed in</span> ' +
-        '<a href="/login">sign in</a>';
+      el.accountWrap.hidden = true;
     }
   }
 
@@ -543,8 +545,19 @@
 
   if (el.refresh) el.refresh.addEventListener('click', loadNodes);
 
-  if (el.account) {
-    el.account.addEventListener('click', (ev) => {
+  if (el.accountTrigger) {
+    el.accountTrigger.addEventListener('click', () => {
+      const open = el.accountTrigger.getAttribute('aria-expanded') === 'true';
+      el.accountTrigger.setAttribute('aria-expanded', String(!open));
+      el.accountMenu.hidden = open;
+    });
+    document.addEventListener('click', (ev) => {
+      if (!el.accountWrap.contains(ev.target)) {
+        el.accountTrigger.setAttribute('aria-expanded', 'false');
+        el.accountMenu.hidden = true;
+      }
+    });
+    el.accountMenu.addEventListener('click', (ev) => {
       const link = ev.target.closest('[data-action="logout"]');
       if (!link) return;
       ev.preventDefault();

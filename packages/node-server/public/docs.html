@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta
+    name="description"
+    content="Espresso API documentation — repository browsing endpoints for gitGost and Git smart-HTTP over ESP32 nodes."
+  >
+  <title>API Docs · Espresso</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/dashboard.css">
+  <script>
+    document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';
+  </script>
+</head>
+<body class="landing-page">
+  <section class="landing-shell">
+    <nav class="dash-topbar">
+      <a class="dash-brand" href="/" aria-label="Espresso home">
+        <img src="/openbin-mark.svg" alt="" class="dash-brand-mark">
+        <span class="dash-brand-name">Espresso</span>
+      </a>
+      <a href="/dashboard" class="dash-topnav-link">Repositories</a>
+      <a href="/profile" class="dash-topnav-link">Profile</a>
+      <a href="/docs" class="dash-topnav-link is-active">API docs</a>
+    </nav>
+
+    <main class="landing-main">
+      <div class="landing-content">
+        <div class="landing-logo">
+          <img src="/openbin-mark.svg" alt="Espresso logo" class="landing-logo-image">
+        </div>
+
+        <h1>API Documentation</h1>
+
+        <p class="landing-tagline">
+          Repository browsing API for gitGost over ESP32 storage nodes.
+        </p>
+
+        <p class="landing-intro">
+          Espresso exposes a repository browsing API under the <code>/api/gg</code> prefix and Git
+          smart-HTTP under <code>/:owner/:repo.git/...</code>. No exposed ports, no passwords.
+        </p>
+
+        <div class="landing-actions">
+          <a href="/dashboard" class="button button-primary">Go to dashboard</a>
+        </div>
+
+        <h2 class="landing-features-title">Endpoints</h2>
+        <div class="landing-features">
+          <article class="landing-feature">
+            <h3>Directory tree</h3>
+            <p><code>GET /api/gg/repos/:owner/:repo/tree?path=</code></p>
+            <p>Lists the contents of a directory inside the repository.</p>
+          </article>
+          <article class="landing-feature">
+            <h3>Raw file content</h3>
+            <p><code>GET /api/gg/repos/:owner/:repo/raw?path=README.md</code></p>
+            <p>Returns file content as <code>text/plain</code>.</p>
+          </article>
+          <article class="landing-feature">
+            <h3>Repository info</h3>
+            <p><code>GET /api/gg/repos/:owner/:repo/info</code></p>
+            <p>Basic repository metadata.</p>
+          </article>
+          <article class="landing-feature">
+            <h3>Branches</h3>
+            <p><code>GET /api/gg/repos/:owner/:repo/branches</code></p>
+            <p>List of branch names.</p>
+          </article>
+          <article class="landing-feature">
+            <h3>Tags</h3>
+            <p><code>GET /api/gg/repos/:owner/:repo/tags</code></p>
+            <p>List of tag names.</p>
+          </article>
+          <article class="landing-feature">
+            <h3>Topics</h3>
+            <p><code>GET /api/gg/repos/:owner/:repo/topics</code></p>
+            <p>Discovery categories/tags (currently empty until topic storage is added).</p>
+          </article>
+          <article class="landing-feature">
+            <h3>Commits</h3>
+            <p><code>GET /api/gg/repos/:owner/:repo/commits</code></p>
+            <p>List of commit SHAs.</p>
+          </article>
+        </div>
+
+        <h2 class="landing-features-title">Authentication</h2>
+        <div class="landing-features">
+          <article class="landing-feature">
+            <h3>Session token</h3>
+            <p>Send <code>X-ZKP-Token: &lt;token&gt;</code> on management endpoints and authenticated browsing.</p>
+          </article>
+          <article class="landing-feature">
+            <h3>Anonymous browsing</h3>
+            <p>Works without a token in trusted-network mode (no API key configured on the server).</p>
+          </article>
+        </div>
+
+        <h2 class="landing-features-title">Git smart-HTTP</h2>
+        <div class="landing-features">
+          <article class="landing-feature">
+            <h3>Clone / fetch / push</h3>
+            <p>
+              <code>GET /:owner/:repo.git/info/refs?service=git-upload-pack</code><br>
+              <code>POST /:owner/:repo.git/git-upload-pack</code>
+            </p>
+            <p>Add <code>X-ZKP-Token</code> to Git HTTP requests.</p>
+          </article>
+        </div>
+
+      </div>
+    </main>
+  </section>
+
+  <footer class="status-bar">
+    <span class="status-prompt">home <span aria-hidden="true">_</span></span>
+    <span class="status-guest">
+      browsing as guest
+      <a href="/login">(login)</a>
+    </span>
+  </footer>
+</body>
+</html>

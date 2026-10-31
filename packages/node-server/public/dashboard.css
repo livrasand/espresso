@@ -71,24 +71,72 @@
   font-weight: 600;
 }
 
-.dash-account {
+.dash-account-wrap {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  position: relative;
   margin-left: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
   color: var(--color-muted);
 }
 
-.dash-account a {
-  color: #f76f53;
-  text-decoration: none;
+.dash-account-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: 1px solid var(--color-surface-light);
+  color: inherit;
+  padding: 0.3rem 0.6rem;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 0;
 }
 
-.dash-account a:hover,
-.dash-account a:focus-visible {
-  text-decoration: underline;
+.dash-account-trigger:hover,
+.dash-account-trigger:focus-visible {
+  border-color: var(--color-main);
+  color: var(--color-main);
+}
+
+.dash-account-arrow {
+  font-size: 0.6rem;
+  line-height: 1;
+}
+
+.dash-account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  min-width: 12rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-light);
+  color: var(--color-main);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  z-index: 60;
+}
+
+.dash-account-menu[hidden] { display: none; }
+
+.dash-account-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  color: inherit;
+  text-decoration: none;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.dash-account-item:hover,
+.dash-account-item:focus-visible {
+  background: var(--color-surface-light);
+  color: #f76f53;
 }
 
 /* Shell */
@@ -386,6 +434,14 @@
   font-family: monospace;
   text-transform: uppercase;
 }
+.dash-create-repo-input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--color-surface-light, #2a2a2a);
+  border-radius: 0;
+  background: var(--color-surface, #1a1a1a);
+  color: inherit;
+  font-family: monospace;
+}
 .dash-pair-submit {
   margin-top: 0.35rem;
   width: 100%;
@@ -483,6 +539,33 @@
 .dash-token-open:focus-visible {
   color: var(--color-fg, #eee);
   border-color: var(--color-fg, #eee);
+}
+
+/* GitHub-style "New repository" button — same shape as Token, primary color */
+.dash-create-repo {
+  margin-right: 1rem;
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  background: #f76f53;
+  color: #1f1f1f;
+  border: 1px solid #f76f53;
+  padding: .3rem .8rem;
+  font: 600 .8rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+  border-radius: 0;
+  white-space: nowrap;
+}
+.dash-create-repo:hover {
+  background: #db573e;
+  border-color: #db573e;
+}
+.dash-create-repo:focus-visible {
+  outline: 2px solid #f76f53;
+  outline-offset: 2px;
+}
+.dash-create-repo:active {
+  background: #c44a30;
 }
 
 .dash-token-help {

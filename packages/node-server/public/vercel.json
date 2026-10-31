@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+    "outputDirectory": "public",
+  "cleanUrls": true,
+  "functions": {
+    "api/main.ts": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/login", "destination": "/auth" },
+    { "source": "/dashboard", "destination": "/dashboard.html" },
+    { "source": "/docs", "destination": "/docs.html" },
+    { "source": "/profile", "destination": "/profile.html" },
+    { "source": "/favicon.ico", "destination": "/favicon.svg" },
+    { "source": "/api/:path*", "destination": "/api/main" },
+    { "source": "/node/:path*", "destination": "/api/main" },
+    { "source": "/health", "destination": "/api/main" },
+    { "source": "/metrics", "destination": "/api/main" },
+    { "source": "/:owner/:repo.git/:path*", "destination": "/api/main" }
+  ]
+}

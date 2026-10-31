@@ -16,7 +16,10 @@
   const API = '';
 
   const el = {
-    account: document.getElementById('dash-account'),
+    accountWrap: document.getElementById('dash-account-wrap'),
+    accountTrigger: document.getElementById('dash-account-trigger'),
+    accountValue: document.getElementById('dash-account-value'),
+    accountMenu: document.getElementById('dash-account-menu'),
     nodelist: document.getElementById('dash-nodelist'),
     nodelistEmpty: document.getElementById('dash-nodelist-empty'),
     refresh: document.getElementById('dash-refresh'),
@@ -40,6 +43,15 @@
     status: document.getElementById('dash-status'),
     repolist: document.getElementById('dash-repolist'),
     repolistEmpty: document.getElementById('dash-repolist-empty'),
+    createRepoOpen: document.getElementById('dash-create-repo'),
+    createRepoModal: document.getElementById('dash-create-repo-modal'),
+    createRepoClose: document.getElementById('dash-create-repo-close'),
+    createRepoForm: document.getElementById('dash-create-repo-form'),
+    createRepoName: document.getElementById('dash-create-repo-name'),
+    createRepoDesc: document.getElementById('dash-create-repo-desc'),
+    createRepoNode: document.getElementById('dash-create-repo-node'),
+    createRepoSubmit: document.getElementById('dash-create-repo-submit'),
+    createRepoStatus: document.getElementById('dash-create-repo-status'),
   };
 
   const state = {
@@ -95,13 +107,12 @@
   function renderAccount() {
     const s = Auth.session();
     if (s.account) {
-      el.account.innerHTML =
-        esc(s.account) +
-        ' <a href="/login" data-action="logout">logout</a>';
+      el.accountValue.textContent = esc(s.account);
+      el.accountTrigger.setAttribute('aria-expanded', 'false');
+      el.accountMenu.hidden = true;
+      el.accountWrap.hidden = false;
     } else {
-      el.account.innerHTML =
-        '<span class="dash-account-label">Not signed in</span> ' +
-        '<a href="/login">sign in</a>';
+      el.accountWrap.hidden = true;
     }
   }
 
@@ -284,17 +295,33 @@
     submit.addEventListener('click', async () => {
       if (nameInput.value.trim() !== repo) { setStatus('Repository name does not match.', true); return; }
       if (phraseInput.value.trim().toLowerCase() !== 'delete my repo') { setStatus('Confirmation phrase does not match.', true); return; }
+      submit.disabled = true;
+      submit.textContent = 'Deleting…';
+      let countdown = 5;
+      const countdownEl = document.createElement('p');
+      countdownEl.style.cssText = 'margin:.35rem 0 0;font-size:.75rem;color:#f76f53;';
+      countdownEl.textContent = 'Deleting in ' + countdown + 's…';
+      overlay.querySelector('div').appendChild(countdownEl);
+      const interval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) { clearInterval(interval); countdownEl.textContent = 'Deleting…'; return; }
+        countdownEl.textContent = 'Deleting in ' + countdown + 's…';
+      }, 1000);
       try {
         const res = await fetch(API + '/api/nodes/' + encodeURIComponent(state.selected) + '/repo/delete', {
           method: 'POST',
           headers: Object.assign({ 'Content-Type': 'application/json' }, Auth.authHeaders()),
           body: JSON.stringify({ repo }),
         });
+        clearInterval(interval);
         if (!res.ok) throw new Error('delete failed');
         overlay.remove();
         await selectNode(state.selected);
       } catch (e) {
+        clearInterval(interval);
         setStatus(e.message, true);
+        submit.disabled = false;
+        submit.textContent = 'Delete';
       }
     });
   }
@@ -379,6 +406,59 @@
   }
   if (el.pairForm) el.pairForm.addEventListener('submit', pairNode);
   if (el.pairSubmit) el.pairSubmit.addEventListener('click', (ev) => { ev.preventDefault(); pairNode(ev); });
+  if (el.createRepoOpen) el.createRepoOpen.addEventListener('click', openCreateRepoModal);
+  if (el.createRepoClose) el.createRepoClose.addEventListener('click', closeCreateRepoModal);
+  if (el.createRepoModal) {
+    el.createRepoModal.addEventListener('click', (ev) => {
+      if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-create-close')) closeCreateRepoModal();
+    });
+  }
+  if (el.createRepoForm) el.createRepoForm.addEventListener('submit', (ev) => { ev.preventDefault(); createRepo(); });
+  if (el.createRepoSubmit) el.createRepoSubmit.addEventListener('click', createRepo);
+  // ── Session token modal: show / copy / regenerate ──────────────────
+  function openCreateRepoModal() {
+    if (el.createRepoModal) el.createRepoModal.hidden = false;
+    if (el.createRepoName) el.createRepoName.focus();
+    if (el.createRepoStatus) { el.createRepoStatus.textContent = ''; el.createRepoStatus.classList.remove('is-error'); }
+    if (el.createRepoNode) {
+      el.createRepoNode.innerHTML = state.nodes.map((n) =>
+        '<option value="' + esc(n.id) + '" ' + (n.id === state.selected ? 'selected' : '') + '>' +
+        esc(n.name || n.id) + ' (' + esc(n.id) + ')' + '</option>'
+      ).join('');
+    }
+  }
+  function closeCreateRepoModal() {
+    if (el.createRepoModal) el.createRepoModal.hidden = true;
+    if (el.createRepoForm) el.createRepoForm.reset();
+  }
+  async function createRepo() {
+    const nodeId = (el.createRepoNode && el.createRepoNode.value || '').trim();
+    if (!nodeId) { if (el.createRepoStatus) { el.createRepoStatus.textContent = 'Select a node.'; el.createRepoStatus.classList.add('is-error'); } return; }
+    const name = (el.createRepoName && el.createRepoName.value || '').trim();
+    if (!name) { if (el.createRepoStatus) { el.createRepoStatus.textContent = 'Repository name is required.'; el.createRepoStatus.classList.add('is-error'); } return; }
+    if (el.createRepoSubmit) el.createRepoSubmit.disabled = true;
+    if (el.createRepoStatus) { el.createRepoStatus.textContent = 'Creating…'; el.createRepoStatus.classList.remove('is-error'); }
+    try {
+      const res = await fetch(API + '/api/nodes/' + encodeURIComponent(nodeId) + '/repos', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, Auth.authHeaders()),
+        body: JSON.stringify({
+          name,
+          description: (el.createRepoDesc && el.createRepoDesc.value || '').trim(),
+        }),
+      });
+      let body = null;
+      try { body = await res.json(); } catch { /* non-JSON */ }
+      if (!res.ok) throw new Error((body && body.error) || 'create failed (' + res.status + ')');
+      closeCreateRepoModal();
+      await selectNode(nodeId);
+      if (el.createRepoStatus) { el.createRepoStatus.textContent = 'Repository ' + esc(name) + ' created on ' + esc(nodeId) + '.'; el.createRepoStatus.classList.remove('is-error'); }
+    } catch (e) {
+      if (el.createRepoStatus) { el.createRepoStatus.textContent = e.message; el.createRepoStatus.classList.add('is-error'); }
+    } finally {
+      if (el.createRepoSubmit) el.createRepoSubmit.disabled = false;
+    }
+  }
   // ── Session token modal: show / copy / regenerate ──────────────────
   function setTokenStatus(msg, isError) {
     if (el.tokenStatus) {
@@ -465,8 +545,19 @@
 
   if (el.refresh) el.refresh.addEventListener('click', loadNodes);
 
-  if (el.account) {
-    el.account.addEventListener('click', (ev) => {
+  if (el.accountTrigger) {
+    el.accountTrigger.addEventListener('click', () => {
+      const open = el.accountTrigger.getAttribute('aria-expanded') === 'true';
+      el.accountTrigger.setAttribute('aria-expanded', String(!open));
+      el.accountMenu.hidden = open;
+    });
+    document.addEventListener('click', (ev) => {
+      if (!el.accountWrap.contains(ev.target)) {
+        el.accountTrigger.setAttribute('aria-expanded', 'false');
+        el.accountMenu.hidden = true;
+      }
+    });
+    el.accountMenu.addEventListener('click', (ev) => {
       const link = ev.target.closest('[data-action="logout"]');
       if (!link) return;
       ev.preventDefault();
