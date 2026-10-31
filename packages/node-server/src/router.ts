@@ -68,7 +68,7 @@ export function buildApp(options: AppOptions = {}): App {
     profileH: makeProfileHandlers(profiles, registry),
     ingestH: makeIngestHandlers(registry),
   apiH: makeApiHandlers({ registry, callNode }),
-  ggH: makeGGHandlers({ registry, callNode }),
+  ggH: makeGGHandlers({ registry, callNode, profiles }),
   gitH: makeGitHttpHandlers({ registry, callNode }),
   staticServer: options.staticDir ? makeStaticServer(options.staticDir) : null,
   };

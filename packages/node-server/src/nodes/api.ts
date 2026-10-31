@@ -3,6 +3,7 @@
 
 import type { HttpCtx } from "../http/ctx.js";
 import type { NodeRegistry, RepoEntry } from "./registry.js";
+import type { ProfileStore } from "../profiles/store.js";
 import type { RpcError } from "./rpc.js";
 import { makeRpc } from "./rpc.js";
 import { log } from "../log.js";
@@ -13,6 +14,7 @@ type CallNode = ReturnType<typeof makeRpc>;
 export interface ApiDeps {
   registry: NodeRegistry;
   callNode: CallNode;
+  profiles?: ProfileStore;
 }
 
 interface JsonBody {
@@ -267,13 +269,31 @@ export function makeGGHandlers(deps: ApiDeps) {
     account: string,
     repo: string,
   ): Promise<{ id: string; owner: string } | null> {
-    const nodes = await registry.listByAccount(account);
-    for (const n of nodes) {
-      const id = str(n["id"]);
-      if ((await registry.isOnline(id)) === false) continue;
-      const repos = Array.isArray(n["repositories"]) ? (n["repositories"] as RepoEntry[]) : [];
-      if (repos.some((r) => r.name === repo)) {
-        return { id, owner: account };
+    const profiles = deps.profiles;
+    let accounts = [account];
+    if (profiles) {
+      const accountHash = await profiles.accountHashForUsername(account);
+      if (accountHash !== null) {
+        const all = await registry.list();
+        const matched = all
+          .filter((n) => {
+            const acct = str(n["account"]);
+            return acct !== "" && profiles.hash(acct) === accountHash;
+          })
+          .map((n) => str(n["account"]))
+          .filter((a) => a !== "");
+        accounts = matched.length > 0 ? [...new Set(matched)] : [];
+      }
+    }
+    for (const acct of accounts) {
+      const nodes = await registry.listByAccount(acct);
+      for (const n of nodes) {
+        const id = str(n["id"]);
+        if ((await registry.isOnline(id)) === false) continue;
+        const repos = Array.isArray(n["repositories"]) ? (n["repositories"] as RepoEntry[]) : [];
+        if (repos.some((r) => r.name === repo)) {
+          return { id, owner: acct };
+        }
       }
     }
     ctx.json(404, { error: "repo not found on any online node" });
