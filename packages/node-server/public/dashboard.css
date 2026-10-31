@@ -468,3 +468,49 @@
   border-radius: 0;
 }
 .dash-delete-btn:hover { background: #f76f53; color: #1f1f1f; }
+
+.dash-token-open {
+  margin-right: 1rem;
+  background: none;
+  color: var(--color-muted, #888);
+  border: 1px solid var(--color-surface-light, #2a2a2a);
+  padding: .3rem .8rem;
+  font: 600 .8rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+  border-radius: 0;
+}
+.dash-token-open:hover,
+.dash-token-open:focus-visible {
+  color: var(--color-fg, #eee);
+  border-color: var(--color-fg, #eee);
+}
+
+.dash-token-help {
+  margin: .25rem 0 .75rem;
+  font-size: .82rem;
+  line-height: 1.45;
+  color: var(--color-muted, #888);
+}
+.dash-token-help code {
+  font: 600 .78rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--color-fg, #eee);
+}
+
+.dash-token-code {
+  margin: 0 0 .75rem;
+  max-height: 7rem;
+  overflow: auto;
+  padding: .6rem;
+  background: rgba(0, 0, 0, .35);
+  border: 1px solid var(--color-surface-light, #2a2a2a);
+  font: 400 .68rem ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  word-break: break-all;
+  white-space: pre-wrap;
+  color: var(--color-fg, #eee);
+}
+
+.dash-token-actions {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: .25rem;
+}
