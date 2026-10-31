@@ -8,7 +8,7 @@
     }
   },
   "rewrites": [
-    { "source": "/login", "destination": "/auth.html" },
+    { "source": "/login", "destination": "/auth" },
     { "source": "/dashboard", "destination": "/dashboard.html" },
     { "source": "/profile", "destination": "/profile.html" },
     { "source": "/api/:path*", "destination": "/api/main" },
