@@ -26,3 +26,4 @@ node_modules/
 
 # Firmware build artifacts
 firmware/.pio/
+.vercel

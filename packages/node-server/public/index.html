@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta
+    name="description"
+    content="Espresso — a self-hosted Git forge where ESP32 nodes keep your repos on SD cards you own. No exposed ports, no passwords."
+  >
+  <title>Espresso Official Website</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <script>
+    document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';
+  </script>
+</head>
+<body class="landing-page">
+  <section class="landing-shell">
+    <main class="landing-main">
+      <div class="landing-content">
+
+        <div class="landing-logo">
+          <img
+            src="/openbin-mark.svg"
+            alt="Espresso logo"
+            class="landing-logo-image"
+          >
+        </div>
+
+        <h1>Espresso</h1>
+
+        <p class="landing-tagline">
+          Private, fast, and lightweight Git platform
+        </p>
+
+        <p class="landing-intro">
+            A self-hosted and smallest possible Forge for ESP32,  that gives developers easy-to-run operations from planning to production.
+        </p>
+
+        <div
+          id="actions"
+          class="landing-actions"
+        >
+          <a
+            id="primary-action"
+            href="/login"
+            class="button button-primary"
+          >
+            Create account
+          </a>
+
+          <a
+            id="secondary-action"
+            href="/login"
+            class="button button-secondary"
+          >
+            Sign in
+          </a>
+
+          <a
+            href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flivrasand%2FEspresso&project-name=espresso"
+            target="_blank"
+            rel="noreferrer"
+            class="button button-ghost"
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 12 12"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M6 1l6 10H0z"></path>
+            </svg>
+            Deploy on Vercel
+          </a>
+        </div>
+
+        <div class="landing-features">
+          <article class="landing-feature">
+            <h2>Real Git, no lock-in</h2>
+            <p>
+              Bare Git on an SD card: clone, push and pull with the tooling
+              you already use. No proprietary formats.
+            </p>
+          </article>
+
+          <article class="landing-feature">
+            <h2>Your hardware, your code</h2>
+            <p>
+              Repos live on an SD card you can unplug, pocket and audit.
+              No third-party cloud.
+            </p>
+          </article>
+
+          <article class="landing-feature">
+            <h2>No open ports</h2>
+            <p>
+              Nodes dial out over HTTPS (<code>/node/poll</code>). NAT,
+              CGNAT and firewalls stop being a problem.
+            </p>
+          </article>
+
+          <article class="landing-feature">
+            <h2>No passwords</h2>
+            <p>
+              A short account number at signup. Nothing to leak, nothing
+              to reset.
+            </p>
+          </article>
+
+          <article class="landing-feature">
+            <h2>Offline-tolerant</h2>
+            <p>
+              Syncs when it can and catches up when back. Power cuts and
+              Wi-Fi drops never corrupt anything.
+            </p>
+          </article>
+
+          <article class="landing-feature">
+            <h2>Built for devs</h2>
+            <p>
+              CLI, branches, tags and diffs ready. Deploy to Vercel in one
+              click or run it locally.
+            </p>
+          </article>
+        </div>
+
+      </div>
+    </main>
+
+  </section>
+
+  <footer class="status-bar">
+    <span class="status-prompt">home <span aria-hidden="true">_</span></span>
+    <span class="status-guest">
+      browsing as guest
+      <a href="/login">(login)</a>
+    </span>
+  </footer>
+
+  <script>
+    // Set this value from your authentication system if needed.
+    const isCurator = false;
+
+    const primaryAction = document.getElementById('primary-action');
+    const secondaryAction = document.getElementById('secondary-action');
+
+    if (isCurator) {
+      primaryAction.href = '/api/nodes';
+      primaryAction.textContent = 'Manage nodes';
+
+      secondaryAction.href = '/health';
+      secondaryAction.textContent = 'System status';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Browse the repositories stored on your Espresso nodes.">
+  <title>Espresso</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/dashboard.css">
+  <script>
+    document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';
+  </script>
+  <script src="/auth-client.js" defer></script>
+  <script src="/dashboard.js" defer></script>
+</head>
+<body class="dash-page">
+  <header class="dash-topbar">
+    <a class="dash-brand" href="/" aria-label="Espresso home">
+      <img src="/openbin-mark.svg" alt="" class="dash-brand-mark">
+      <span class="dash-brand-name">Espresso</span>
+    </a>
+    <nav class="dash-topnav" aria-label="Primary">
+      <a class="dash-topnav-link is-active" href="/dashboard">Repositories</a>
+      <a class="dash-topnav-link" href="/profile">Profile</a>
+    </nav>
+    <div class="dash-account" id="dash-account"></div>
+  </header>
+
+  <div class="dash-shell">
+    <aside class="dash-sidebar" aria-label="Your nodes">
+      <div class="dash-sidebar-head">
+        <span class="dash-sidebar-title">Nodes</span>
+        <div class="dash-sidebar-actions">
+          <button id="dash-pair-open" type="button" class="dash-icon-btn" title="Pair a node">
+            <span aria-hidden="true">+</span>
+            <span class="dash-visually-hidden">Pair a node</span>
+          </button>
+          <button id="dash-refresh" type="button" class="dash-icon-btn" title="Refresh">
+            <span aria-hidden="true">&#8635;</span>
+            <span class="dash-visually-hidden">Refresh</span>
+          </button>
+        </div>
+      </div>
+      <ul id="dash-nodelist" class="dash-nodelist"></ul>
+      <p id="dash-nodelist-empty" class="dash-empty" hidden>No nodes paired yet.</p>
+    </aside>
+
+    <div id="dash-pair-modal" class="dash-modal" hidden>
+      <div class="dash-modal-backdrop" data-close="1"></div>
+      <div class="dash-modal-card" role="dialog" aria-modal="true" aria-label="Pair a node">
+        <button id="dash-pair-close" type="button" class="dash-modal-close" title="Close">×</button>
+        <h2 class="dash-pair-title">Pair a node</h2>
+        <form id="dash-pair-form" class="dash-pair-form">
+          <label class="dash-pair-label" for="dash-pair-code">Pairing code</label>
+          <input id="dash-pair-code" class="dash-pair-input" type="text" autocomplete="off" spellcheck="false" placeholder="JJYX3F" required>
+          <label class="dash-pair-label" for="dash-pair-nodeid">Node ID</label>
+          <input id="dash-pair-nodeid" class="dash-pair-input" type="text" autocomplete="off" spellcheck="false" placeholder="827FB20E">
+          <button id="dash-pair-submit" type="button" class="button button-primary dash-pair-submit" onclick="window.__pairNode && window.__pairNode()">Pair</button>
+        </form>
+        <p id="dash-pair-status" class="dash-pair-status" role="status"></p>
+      </div>
+    </div>
+
+    <main class="dash-main">
+      <div class="dash-main-head">
+        <h1 id="dash-title" class="dash-title">Repositories</h1>
+        <p id="dash-subtitle" class="dash-subtitle"></p>
+      </div>
+
+      <p id="dash-status" class="dash-status" role="status"></p>
+
+      <ul id="dash-repolist" class="dash-repolist"></ul>
+      <p id="dash-repolist-empty" class="dash-empty" hidden></p>
+    </main>
+  </div>
+</body>
+</html>
