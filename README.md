@@ -48,6 +48,98 @@ It's for developers, students, hobbyists, and anyone who wants more control over
 
 Whether you're experimenting with your first Git repository or exploring a different way to host your projects, Espresso is built around one simple idea: self-hosting should be more accessible.
 
+## Getting started
+
+### Connecting a node
+
+*Requires a device with the Espresso firmware flashed (see `firmware/`).*
+
+1. **Flash the firmware** (PlatformIO):
+
+   ```bash
+   cd firmware && pio run -t upload
+   ```
+
+2. **First run — captive portal.** The node opens a WiFi access point named
+   `Espresso-<nodeId>` (no password). Connect to it from your phone or laptop —
+   the provisioning portal opens automatically (otherwise browse to
+   `http://192.168.4.1`).
+
+3. **Fill in the portal** and save:
+
+   | Field  | Value |
+   |--------|-------|
+   | SSID   | Your WiFi network name |
+   | Password | Your WiFi password |
+   | Server | `espresso.livrasand.com` |
+   | Port   | `443` |
+
+   The settings are stored in NVS — no re-flashing is needed to change them.
+
+4. **Pair the node.** After saving, the portal (and the serial log, 115200 baud)
+   shows a **pair code**. Open <https://espresso.livrasand.com/dashboard>,
+   click **Pair node**, enter the code, and the node will appear in your node
+   list.
+
+Nodes connect **outward** to the control plane — no inbound ports to open on
+your router. **HTTPS is used when the provisioned port is 443**; any other port
+speaks plain HTTP (handy for LAN/development against a local server).
+
+To reprovision later (e.g. to change WiFi or server), hold the **BOOT button
+(GPIO 0)** on the board for 5 seconds — provisioning is wiped and the setup
+access point starts again.
+
+The deployed control plane lives at:
+
+| | URL | Port |
+|---|-----|------|
+| Web + API | `https://espresso.livrasand.com` | `443` (HTTPS) |
+
+### Creating a repository and pushing your code
+
+Get a **session token** first: on the dashboard, click **Token** → **Copy**
+(tokens are valid for 24 hours; "Generate new" renews it). Then:
+
+```bash
+export ESP_TOK="<paste your token>"
+
+# Create a bare repository on your node (by node ID, shown in the dashboard):
+curl -X POST https://espresso.livrasand.com/api/nodes/<NODE_ID>/repo/create \
+  -H "X-ZKP-Token: $ESP_TOK" -H "Content-Type: application/json" \
+  -d '{"name":"my-repo"}'
+
+# …or create it with README / .gitignore / LICENSE boilerplate:
+curl -X POST https://espresso.livrasand.com/api/nodes/<NODE_ID>/repos \
+  -H "X-ZKP-Token: $ESP_TOK" -H "Content-Type: application/json" \
+  -d '{"name":"my-repo","description":"My first Espresso repo","readme":"yes","gitignore":"none","license":"none"}'
+```
+
+Then push your project as usual over Git's smart-HTTP protocol:
+
+```bash
+cd my-project
+git init -b master            # if not already a repo
+git add -A && git commit -m "first commit"
+
+git remote add origin https://espresso.livrasand.com/<account>/my-repo.git
+git -c http.extraHeader="X-ZKP-Token: $ESP_TOK" push origin master
+```
+
+The `<account>` segment of the URL is cosmetic — the node is resolved from your
+session token, so pushing to your own node works regardless of the name.
+
+### Cloning a repository
+
+From any machine with the session token (or with a public repo, without one):
+
+```bash
+git -c http.extraHeader="X-ZKP-Token: $ESP_TOK" clone \
+  https://espresso.livrasand.com/<account>/my-repo.git
+```
+
+Clones and pulls fetch objects **directly from the ESP32's storage** on demand
+(SD card first, then USB storage, then internal flash).
+
 ## Get involved
 
 Espresso is actively evolving. You can help make it more affordable, reliable, and accessible.
