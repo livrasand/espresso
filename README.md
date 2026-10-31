@@ -173,5 +173,3 @@ Tested targets: ESP32. Test reports for other ESP32 variants are very welcome!
 *✨ Thanks for visiting **Espresso**!*
 
 <img src="https://visitor-badge.laobi.icu/badge?page_id=livrasand.espresso&style=for-the-badge&color=f76f53" alt="Views">
-
-

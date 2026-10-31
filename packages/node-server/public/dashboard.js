@@ -121,6 +121,7 @@
               '<span class="dash-node-name">' + esc(n.name || n.id) + '</span>' +
             '</span>' +
             '<span class="dash-node-meta">' + esc(meta) + '</span>' +
+            '<span class="dash-node-id">' + id + ' <button type="button" class="dash-copy-btn dash-copy-sm" data-copy="' + id + '" title="Copy node ID">Copy</button></span>' +
           '</button>' +
         '</li>'
       );
@@ -129,6 +130,18 @@
 
     el.nodelist.querySelectorAll('[data-node]').forEach((btn) => {
       btn.addEventListener('click', () => selectNode(btn.getAttribute('data-node')));
+    });
+    el.nodelist.querySelectorAll('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const t = btn.getAttribute('data-copy');
+        try {
+          if (navigator.clipboard) await navigator.clipboard.writeText(t);
+          else { const x = document.createElement('textarea'); x.value = t; document.body.appendChild(x); x.select(); document.execCommand('copy'); x.remove(); }
+          btn.textContent = 'Copied';
+          setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
+        } catch (e) { btn.textContent = 'Error'; }
+      });
     });
   }
 
@@ -196,8 +209,8 @@
     try {
       const base = '/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo);
       const [b, t] = await Promise.all([
-        getJson(base + '/branches'),
-        getJson(base + '/tags'),
+        getJson(base + '/branches').catch(() => null),
+        getJson(base + '/tags').catch(() => null),
       ]);
       renderRefs(
         detail,

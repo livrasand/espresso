@@ -514,3 +514,6 @@
   gap: .5rem;
   margin-bottom: .25rem;
 }
+
+.dash-node-id { display:block; font-size:0.7rem; color:#888; margin-top:2px; }
+.dash-copy-sm { font-size:0.65rem; padding:0 4px; margin-left:4px; }
