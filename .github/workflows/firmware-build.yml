@@ -8,17 +8,13 @@ on:
         required: true
         type: string
 
-env:
-  PLATFORM: esp32
-  PIO_ENV: esp32
-
 permissions:
   actions: write
   contents: write
 
 jobs:
   pio-build:
-    name: build-${{ env.PLATFORM }}
+    name: build-esp32
     runs-on: ubuntu-latest
     outputs:
       artifact-id: ${{ steps.upload-firmware.outputs.artifact-id }}
@@ -36,26 +32,26 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
-      - name: Build ${{ env.PLATFORM }}
+      - name: Build esp32
         id: build
         run: |
           cd firmware
-          pio run -e "$PIO_ENV"
+          pio run -e esp32
 
       - name: Prepare firmware package
         id: package
         run: |
           mkdir -p firmware/release
-          cp "firmware/.pio/build/$PIO_ENV/firmware.bin" firmware/release/
-          cp "firmware/.pio/build/$PIO_ENV/bootloader.bin" firmware/release/
-          cp "firmware/.pio/build/$PIO_ENV/partitions.bin" firmware/release/
+          cp firmware/.pio/build/esp32/firmware.bin firmware/release/
+          cp firmware/.pio/build/esp32/bootloader.bin firmware/release/
+          cp firmware/.pio/build/esp32/partitions.bin firmware/release/
 
           cd firmware/release
           sha256sum firmware.bin bootloader.bin partitions.bin > SHA256SUMS
 
       - name: Job summary
         run: |
-          echo "## $PIO_ENV" >> $GITHUB_STEP_SUMMARY
+          echo "## esp32" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Firmware" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -73,7 +69,7 @@ jobs:
         id: upload-firmware
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: "firmware-${{ env.PLATFORM }}-${{ env.PIO_ENV }}-${{ steps.sanitize.outputs.version }}"
+          name: "firmware-esp32-esp32-${{ steps.sanitize.outputs.version }}"
           overwrite: true
           path: |
             firmware/release/*.bin
