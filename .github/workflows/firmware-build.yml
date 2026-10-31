@@ -3,19 +3,14 @@ name: Firmware Build
 on:
   workflow_dispatch:
     inputs:
-      tag_name:
-        description: Release tag (for example, v0.1.0)
-        required: true
-        type: string
       version:
+        description: Version (for example, 0.1.0)
         required: true
         type: string
-      platform:
-        required: true
-        type: string
-      pio_env:
-        required: true
-        type: string
+
+env:
+  PLATFORM: esp32
+  PIO_ENV: esp32
 
 permissions:
   actions: write
@@ -23,7 +18,7 @@ permissions:
 
 jobs:
   pio-build:
-    name: build-${{ inputs.platform }}
+    name: build-${{ env.PLATFORM }}
     runs-on: ubuntu-latest
     outputs:
       artifact-id: ${{ steps.upload-firmware.outputs.artifact-id }}
@@ -41,26 +36,26 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
-      - name: Build ${{ inputs.platform }}
+      - name: Build ${{ env.PLATFORM }}
         id: build
         run: |
           cd firmware
-          pio run -e ${{ inputs.pio_env }}
+          pio run -e "$PIO_ENV"
 
       - name: Prepare firmware package
         id: package
         run: |
           mkdir -p firmware/release
-          cp firmware/.pio/build/${{ inputs.pio_env }}/firmware.bin firmware/release/
-          cp firmware/.pio/build/${{ inputs.pio_env }}/bootloader.bin firmware/release/
-          cp firmware/.pio/build/${{ inputs.pio_env }}/partitions.bin firmware/release/
+          cp "firmware/.pio/build/$PIO_ENV/firmware.bin" firmware/release/
+          cp "firmware/.pio/build/$PIO_ENV/bootloader.bin" firmware/release/
+          cp "firmware/.pio/build/$PIO_ENV/partitions.bin" firmware/release/
 
           cd firmware/release
           sha256sum firmware.bin bootloader.bin partitions.bin > SHA256SUMS
 
       - name: Job summary
         run: |
-          echo "## ${{ inputs.pio_env }}" >> $GITHUB_STEP_SUMMARY
+          echo "## $PIO_ENV" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Firmware" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -78,7 +73,7 @@ jobs:
         id: upload-firmware
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: "firmware-${{ inputs.platform }}-${{ inputs.pio_env }}-${{ steps.sanitize.outputs.version }}"
+          name: "firmware-${{ env.PLATFORM }}-${{ env.PIO_ENV }}-${{ steps.sanitize.outputs.version }}"
           overwrite: true
           path: |
             firmware/release/*.bin
@@ -101,8 +96,16 @@ jobs:
           find dist -type f \( -iname '*.bin' -o -iname 'SHA256SUMS' \) -exec cp {} release/ \;
           test -n "$(find release -type f -print -quit)"
           (cd release && sha256sum * > SHA256SUMS)
+      - name: Derive release tag
+        id: tag
+        run: |
+          VERSION="${VERSION#v}"
+          echo "tag_name=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        env:
+          VERSION: ${{ inputs.version }}
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ inputs.tag_name }}
+          TAG_NAME: ${{ steps.tag.outputs.tag_name }}
         run: gh release create "$TAG_NAME" release/* --target "$GITHUB_SHA" --title "$TAG_NAME" --generate-notes
