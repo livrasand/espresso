@@ -14,6 +14,7 @@
     { "source": "/api/:path*", "destination": "/api/main" },
     { "source": "/node/:path*", "destination": "/api/main" },
     { "source": "/health", "destination": "/api/main" },
-    { "source": "/metrics", "destination": "/api/main" }
+    { "source": "/metrics", "destination": "/api/main" },
+    { "source": "/:owner/:repo.git/:path*", "destination": "/api/main" }
   ]
 }

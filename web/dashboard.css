@@ -485,6 +485,33 @@
   border-color: var(--color-fg, #eee);
 }
 
+/* GitHub-style "New repository" button — same shape as Token, primary color */
+.dash-create-repo {
+  margin-right: 1rem;
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  background: #f76f53;
+  color: #1f1f1f;
+  border: 1px solid #f76f53;
+  padding: .3rem .8rem;
+  font: 600 .8rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+  border-radius: 0;
+  white-space: nowrap;
+}
+.dash-create-repo:hover {
+  background: #db573e;
+  border-color: #db573e;
+}
+.dash-create-repo:focus-visible {
+  outline: 2px solid #f76f53;
+  outline-offset: 2px;
+}
+.dash-create-repo:active {
+  background: #c44a30;
+}
+
 .dash-token-help {
   margin: .25rem 0 .75rem;
   font-size: .82rem;

@@ -376,14 +376,21 @@ export function makeGGHandlers(deps: ApiDeps) {
     if (bt === null) return;
     ctx.json(200, { tags: bt.tags });
   },
-  async commits(ctx: HttpCtx, owner: string, repo: string): Promise<void> {
-    repo = decodeURIComponent(repo);
-    owner = decodeURIComponent(owner);
-    const live = await nodeForAccountRepo(ctx, owner, repo);
-    if (live === null) return;
-    const bt = await branchesAndTags(ctx, live.id, repo);
-    if (bt === null) return;
-    ctx.json(200, { commits: bt.commits });
-  },
+    async commits(ctx: HttpCtx, owner: string, repo: string): Promise<void> {
+      repo = decodeURIComponent(repo);
+      owner = decodeURIComponent(owner);
+      const live = await nodeForAccountRepo(ctx, owner, repo);
+      if (live === null) return;
+      const bt = await branchesAndTags(ctx, live.id, repo);
+      if (bt === null) return;
+      ctx.json(200, { commits: bt.commits });
+    },
+    async topics(ctx: HttpCtx, owner: string, repo: string): Promise<void> {
+      repo = decodeURIComponent(repo);
+      owner = decodeURIComponent(owner);
+      const live = await nodeForAccountRepo(ctx, owner, repo);
+      if (live === null) return;
+      ctx.json(200, { topics: [] });
+    },
   };
 }

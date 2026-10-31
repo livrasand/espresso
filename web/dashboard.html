@@ -25,6 +25,7 @@
       <a class="dash-topnav-link" href="/profile">Profile</a>
     </nav>
     <button id="dash-token-open" type="button" class="dash-token-open" title="Generate or copy a session token">Token</button>
+    <button id="dash-create-repo" type="button" class="dash-create-repo" title="Create a new repository on the selected node">New repository</button>
     <div class="dash-account" id="dash-account"></div>
   </header>
 
@@ -86,6 +87,24 @@
         <h1 id="dash-title" class="dash-title">Repositories</h1>
         <p id="dash-subtitle" class="dash-subtitle"></p>
       </div>
+
+    <div id="dash-create-repo-modal" class="dash-modal" hidden>
+      <div class="dash-modal-backdrop" data-create-close="1"></div>
+      <div class="dash-modal-card" role="dialog" aria-modal="true" aria-label="Create repository">
+        <button id="dash-create-repo-close" type="button" class="dash-modal-close" title="Close">×</button>
+        <h2 class="dash-pair-title">Create repository</h2>
+        <form id="dash-create-repo-form" class="dash-pair-form">
+          <label class="dash-pair-label" for="dash-create-repo-node">Node</label>
+          <select id="dash-create-repo-node" class="dash-pair-input"></select>
+          <label class="dash-pair-label" for="dash-create-repo-name">Repository name</label>
+          <input id="dash-create-repo-name" class="dash-pair-input" type="text" autocomplete="off" spellcheck="false" placeholder="my-repo" required>
+          <label class="dash-pair-label" for="dash-create-repo-desc">Description</label>
+          <input id="dash-create-repo-desc" class="dash-pair-input" type="text" placeholder="My repository description">
+          <button id="dash-create-repo-submit" type="button" class="button button-primary dash-create-repo-submit">Create</button>
+        </form>
+        <p id="dash-create-repo-status" class="dash-pair-status" role="status"></p>
+      </div>
+    </div>
 
       <p id="dash-status" class="dash-status" role="status"></p>
 
