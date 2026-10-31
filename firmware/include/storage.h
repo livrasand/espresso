@@ -7,6 +7,7 @@
 #include <SD.h>
 #include <SPI.h>
 #include <LittleFS.h>
+#include <vector>
 #include "config.h"
 #include "ch375b.h"
 
@@ -526,6 +527,151 @@ public:
 
         if (!sdOk && !usbOk && !flashOk) {
             log_e("[FS] removeFile: NO STORAGE AVAILABLE for: %s", path);
+        }
+        return false;
+    }
+
+    // ── recursive directory-tree deletion ──────────────────────────────
+    // SD.remove()/LittleFS.remove() only unlink *files*, so deleting a
+    // repository directory needs a depth-first traversal first: recurse
+    // into every subdirectory, unlink the files, then rmdir bottom-up.
+
+    bool sdRemoveTree(const char* path) {
+        File dir = SD.open(path);
+        if (!dir) {
+            log_d("[FS] SD tree delete: cannot open %s", path);
+            return false;
+        }
+        if (!dir.isDirectory()) {
+            dir.close();
+            return SD.remove(path);  // plain file
+        }
+
+        // Gather entry names first: deleting while iterating can corrupt
+        // the openNextFile() cursor position.
+        std::vector<String> entries;
+        File entry;
+        while ((entry = dir.openNextFile())) {
+            String name = entry.name();
+            entry.close();
+            // Core versions differ: some return the bare name, some the
+            // full path. Normalize to the bare name.
+            int slash = name.lastIndexOf('/');
+            if (slash >= 0) name = name.substring(slash + 1);
+            if (name != "." && name != ".." && !name.isEmpty()) {
+                entries.push_back(name);
+            }
+        }
+        dir.close();
+
+        for (const String& name : entries) {
+            String child = String(path);
+            if (!child.endsWith("/")) child += "/";
+            child += name;
+            if (!sdRemoveTree(child.c_str())) {
+                log_w("[FS] SD tree delete: subtree failed: %s", child.c_str());
+                return false;
+            }
+        }
+
+        if (SD.rmdir(path)) {
+            log_d("[FS] SD tree: removed dir %s", path);
+            return true;
+        }
+        log_w("[FS] SD tree delete: rmdir failed: %s", path);
+        return false;
+    }
+
+    bool flashRemoveTree(const char* flashPath) {
+        File dir = LittleFS.open(flashPath);
+        if (!dir) {
+            log_d("[FS] Flash tree delete: cannot open %s", flashPath);
+            return false;
+        }
+        if (!dir.isDirectory()) {
+            dir.close();
+            return LittleFS.remove(flashPath);  // plain file
+        }
+
+        std::vector<String> entries;
+        File entry;
+        while ((entry = dir.openNextFile())) {
+            String name = entry.name();
+            entry.close();
+            int slash = name.lastIndexOf('/');
+            if (slash >= 0) name = name.substring(slash + 1);
+            if (name != "." && name != ".." && !name.isEmpty()) {
+                entries.push_back(name);
+            }
+        }
+        dir.close();
+
+        for (const String& name : entries) {
+            String child = String(flashPath);
+            if (!child.endsWith("/")) child += "/";
+            child += name;
+            if (!flashRemoveTree(child.c_str())) {
+                log_w("[FS] Flash tree delete: subtree failed: %s", child.c_str());
+                return false;
+            }
+        }
+
+        if (LittleFS.rmdir(flashPath)) {
+            log_d("[FS] Flash tree: removed dir %s", flashPath);
+            return true;
+        }
+        log_w("[FS] Flash tree delete: rmdir failed: %s", flashPath);
+        return false;
+    }
+
+    bool usbRemoveTree(const char* path) {
+        // CH375B exposes no directory attribute while enumerating and has
+        // no rmdir, so this is best effort only: erase every file the
+        // enumerator reports beneath the path, then try to erase the
+        // path itself. Repositories with subdirectories cannot be fully
+        // removed over USB — SD (the primary backend) handles that case.
+        ch375b.dirEnumerate(path, [&](const char* name, uint32_t) {
+            String child = String(path);
+            if (!child.endsWith("/")) child += "/";
+            child += name;
+            if (!ch375b.fileErase(child.c_str())) {
+                log_w("[FS] USB tree delete: erase failed: %s", child.c_str());
+            }
+        });
+        return ch375b.fileErase(path);
+    }
+
+    // Recursively delete a repository tree (files + subdirectories).
+    bool deleteTree(const char* path) {
+        log_d("[FS] DELETE TREE: %s (primary=%s)", path, getPrimaryStorage());
+
+        if (sdOk) {
+            if (sdRemoveTree(path)) {
+                log_i("[FS] Tree removed from SD: %s", path);
+                return true;
+            }
+            log_w("[FS] SD tree delete failed → trying USB/Flash...");
+        }
+
+        if (usbOk) {
+            if (usbRemoveTree(path)) {
+                log_i("[FS] Tree removed from USB: %s", path);
+                return true;
+            }
+            log_w("[FS] USB tree delete failed → trying Flash...");
+        }
+
+        if (flashOk) {
+            String flashPath = translateToFlashPath(path);
+            if (flashRemoveTree(flashPath.c_str())) {
+                log_i("[FS] Tree removed from Flash: %s → %s", path, flashPath.c_str());
+                return true;
+            }
+            log_w("[FS] Flash tree delete failed: %s", path);
+        }
+
+        if (!sdOk && !usbOk && !flashOk) {
+            log_e("[FS] deleteTree: NO STORAGE AVAILABLE for: %s", path);
         }
         return false;
     }

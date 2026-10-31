@@ -261,7 +261,7 @@ public:
             return;
         }
         String dir = String(SD_MOUNT_POINT) + "/" + repo;
-        bool ok = storage.removeFile(dir.c_str());
+        bool ok = storage.deleteTree(dir.c_str());
         if (ok) {
             respondAck(reqId);
             sendRepoList(String("fwr") + millis());  // refresh index
