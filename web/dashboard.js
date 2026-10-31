@@ -28,6 +28,13 @@
     pairNodeId: document.getElementById('dash-pair-nodeid'),
     pairSubmit: document.getElementById('dash-pair-submit'),
     pairStatus: document.getElementById('dash-pair-status'),
+    tokenOpen: document.getElementById('dash-token-open'),
+    tokenModal: document.getElementById('dash-token-modal'),
+    tokenClose: document.getElementById('dash-token-close'),
+    tokenValue: document.getElementById('dash-token-value'),
+    tokenCopy: document.getElementById('dash-token-copy'),
+    tokenGenerate: document.getElementById('dash-token-generate'),
+    tokenStatus: document.getElementById('dash-token-status'),
     title: document.getElementById('dash-title'),
     subtitle: document.getElementById('dash-subtitle'),
     status: document.getElementById('dash-status'),
@@ -359,6 +366,90 @@
   }
   if (el.pairForm) el.pairForm.addEventListener('submit', pairNode);
   if (el.pairSubmit) el.pairSubmit.addEventListener('click', (ev) => { ev.preventDefault(); pairNode(ev); });
+  // ── Session token modal: show / copy / regenerate ──────────────────
+  function setTokenStatus(msg, isError) {
+    if (el.tokenStatus) {
+      el.tokenStatus.textContent = msg || '';
+      el.tokenStatus.classList.toggle('is-error', !!isError);
+    }
+  }
+
+  function tokenModalRefresh() {
+    const s = Auth.session();
+    if (el.tokenValue) el.tokenValue.textContent = s.token || '— no session token —';
+    if (!s.token) setTokenStatus('No active token. "Generate new" signs your account in again.');
+    else if (!s.account) setTokenStatus('Token active, but no account number recorded in this browser.');
+    else setTokenStatus('Token active · account ' + s.account);
+  }
+
+  function openTokenModal() {
+    if (el.tokenModal) el.tokenModal.hidden = false;
+    tokenModalRefresh();
+  }
+
+  function closeTokenModal() {
+    if (el.tokenModal) el.tokenModal.hidden = true;
+  }
+
+  async function generateToken() {
+    const account = (Auth.session().account || '').replace(/\D/g, '');
+    if (!account) {
+      setTokenStatus('There is no recorded account in this browser. Sign in on /login first.', true);
+      return;
+    }
+    if (el.tokenGenerate) el.tokenGenerate.disabled = true;
+    setTokenStatus('Generating…');
+    try {
+      const res = await fetch(API + '/api/accounts/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((body && body.error) || 'could not generate token (' + res.status + ')');
+      Auth.saveSession(
+        body && (body.account || account),
+        body && body.session_token ? body.session_token : '',
+      );
+      renderAccount();
+      tokenModalRefresh();
+      setTokenStatus('New token generated — valid for the next 24 hours.');
+      await loadNodes();
+    } catch (e) {
+      setTokenStatus(e.message, true);
+    } finally {
+      if (el.tokenGenerate) el.tokenGenerate.disabled = false;
+    }
+  }
+
+  async function copyToken() {
+    const token = Auth.session().token;
+    if (!token) { setTokenStatus('Nothing to copy — generate a token first.', true); return; }
+    try {
+      await navigator.clipboard.writeText(token);
+      setTokenStatus('Token copied to clipboard.');
+    } catch {
+      // Clipboard API may fail on insecure contexts; fall back to selection.
+      if (el.tokenValue) {
+        const range = document.createRange();
+        range.selectNodeContents(el.tokenValue);
+        const sel = window.getSelection();
+        if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      }
+      setTokenStatus('Could not use the clipboard — token selected: Ctrl+C / ⌘+C.', true);
+    }
+  }
+
+  if (el.tokenOpen) el.tokenOpen.addEventListener('click', openTokenModal);
+  if (el.tokenClose) el.tokenClose.addEventListener('click', closeTokenModal);
+  if (el.tokenModal) {
+    el.tokenModal.addEventListener('click', (ev) => {
+      if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-token-close')) closeTokenModal();
+    });
+  }
+  if (el.tokenCopy) el.tokenCopy.addEventListener('click', copyToken);
+  if (el.tokenGenerate) el.tokenGenerate.addEventListener('click', generateToken);
+
   if (el.refresh) el.refresh.addEventListener('click', loadNodes);
 
   if (el.account) {

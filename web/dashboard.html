@@ -24,6 +24,7 @@
       <a class="dash-topnav-link is-active" href="/dashboard">Repositories</a>
       <a class="dash-topnav-link" href="/profile">Profile</a>
     </nav>
+    <button id="dash-token-open" type="button" class="dash-token-open" title="Generate or copy a session token">Token</button>
     <div class="dash-account" id="dash-account"></div>
   </header>
 
@@ -59,6 +60,24 @@
           <button id="dash-pair-submit" type="button" class="button button-primary dash-pair-submit" onclick="window.__pairNode && window.__pairNode()">Pair</button>
         </form>
         <p id="dash-pair-status" class="dash-pair-status" role="status"></p>
+      </div>
+    </div>
+
+    <div id="dash-token-modal" class="dash-modal" hidden>
+      <div class="dash-modal-backdrop" data-token-close="1"></div>
+      <div class="dash-modal-card" role="dialog" aria-modal="true" aria-label="Session token">
+        <button id="dash-token-close" type="button" class="dash-modal-close" title="Close">×</button>
+        <h2 class="dash-pair-title">Session token</h2>
+        <p class="dash-token-help">
+          HMAC session token, valid for 24&nbsp;hours. Send it in <strong>c</strong>url or <strong>git</strong> with the
+          <code>X-ZKP-Token</code> header to manage your nodes and push repositories.
+        </p>
+        <pre id="dash-token-value" class="dash-token-code" aria-label="Session token value"></pre>
+        <div class="dash-token-actions">
+          <button id="dash-token-copy" type="button" class="dash-copy-btn">Copy</button>
+          <button id="dash-token-generate" type="button" class="button button-secondary">Generate new</button>
+        </div>
+        <p id="dash-token-status" class="dash-pair-status" role="status"></p>
       </div>
     </div>
 
