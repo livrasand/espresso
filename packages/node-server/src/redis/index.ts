@@ -1,5 +1,5 @@
-// Redis-compatible data store layer. On Vercel: Upstash Redis REST.
-// Locally (no UPSTASH_* env): an in-memory fallback so `npm run dev`
+// Compatible data store layer. With STRATA_* env: Strata (git-backed KV).
+// Locally (no STRATA_* env): an in-memory fallback so `npm run dev`
 // works out of the box without external services.
 
 export type RedisReply = string | string[] | number | null | Record<string, unknown>;
@@ -92,17 +92,17 @@ export class Redis {
   }
 }
 
-import { UpstashBackend } from "./upstash.js";
+import { StrataBackend } from "./strata.js";
 import { MemoryRedis } from "./memory.js";
 
-function backendFor(env: { redis: { url: string | null; token: string | null } } & { logFormat?: string }, warn: (m: string) => void): RedisLike {
-  if (env.redis.url && env.redis.token) {
-    return new UpstashBackend(env.redis.url, env.redis.token);
+function backendFor(env: { strata: { url: string | null; token: string | null } }, warn: (m: string) => void): RedisLike {
+  if (env.strata.url && env.strata.token) {
+    return new StrataBackend(env.strata.url, env.strata.token);
   }
-  warn("UPSTASH_REDIS_REST_URL/TOKEN unset — using in-memory store (local dev only, data is volatile)");
+  warn("STRATA_URL/STRATA_TOKEN unset — using in-memory store (local dev only, data is volatile)");
   return new MemoryRedis();
 }
 
-export function redis(c: { redis: { url: string | null; token: string | null } }, warn: (m: string) => void): Redis {
+export function redis(c: { strata: { url: string | null; token: string | null } }, warn: (m: string) => void): Redis {
   return new Redis(backendFor(c, warn));
 }

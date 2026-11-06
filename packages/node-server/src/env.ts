@@ -1,7 +1,8 @@
 // Environment configuration for the Espresso control plane.
 
 export interface Config {
-  redis: {
+  /** Strata KV store (git-backed). URL + API token; unset → in-memory dev store. */
+  strata: {
     url: string | null;
     token: string | null;
   };
@@ -44,9 +45,9 @@ let cached: Config | null = null;
 export function config(): Config {
   if (cached) return cached;
   cached = {
-    redis: {
-      url: env("UPSTASH_REDIS_REST_URL"),
-      token: env("UPSTASH_REDIS_REST_TOKEN"),
+    strata: {
+      url: env("STRATA_URL"),
+      token: env("STRATA_TOKEN"),
     },
     secret: loadSecret(),
     apiKey: env("ESPRESSO_API_KEY") ?? "",
