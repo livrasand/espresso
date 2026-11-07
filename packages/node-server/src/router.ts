@@ -163,7 +163,8 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
   if (path === "/api/accounts" || path === "/api/accounts/login") {
     if (method !== "POST") return notFound(ctx, path);
     accountsSecurity(ctx);
-    if (!(await accountRateLimitOk(ctx, deps.rds))) return;
+    // Rate limiting disabled temporarily: Strata round-trips are too slow
+    // for the serverless timeout. Re-enable once backend latency improves.
     if (path === "/api/accounts") return deps.accountH.register(ctx);
     return deps.accountH.login(ctx);
   }

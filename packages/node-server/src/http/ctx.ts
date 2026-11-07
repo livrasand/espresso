@@ -50,7 +50,19 @@ export function ctxFor(req: IncomingMessage, res: ServerResponse, preBody?: unkn
     identity: "",
     async body(): Promise<unknown> {
       if (bodyCache !== undefined) return bodyCache;
-      const buf = await _readBody(req, 512 * 1024);
+      // Vercel's Node.js runtime may pre-parse the body into req.body and
+      // fully consume the stream, in which case _readBody would never fire
+      // "end" and hang until the function times out. Prefer the pre-parsed
+      // value when present.
+      const pre = (req as unknown as { body?: unknown }).body;
+      let buf: Buffer | null;
+      if (pre !== undefined && pre !== null) {
+        if (Buffer.isBuffer(pre)) buf = pre;
+        else if (typeof pre === "string") buf = Buffer.from(pre, "utf8");
+        else { bodyCache = pre; return pre; }
+      } else {
+        buf = await _readBody(req, 512 * 1024);
+      }
       if (buf === null) return null;
       const text = buf.toString("utf8");
       try {
@@ -111,26 +123,34 @@ function _readBody(req: IncomingMessage, limit: number): Promise<Buffer | null> 
       resolve(null);
       return;
     }
+    // If the stream is already fully consumed/ended (common under Vercel's
+    // runtime where the body is delivered pre-read), resolve immediately
+    // instead of waiting forever for an "end" event that already fired.
+    if ((req as unknown as { readableEnded?: boolean }).readableEnded || (req as unknown as { complete?: boolean }).complete) {
+      resolve(Buffer.alloc(0));
+      return;
+    }
     const chunks: Buffer[] = [];
     let size = 0;
     let resolved = false;
+    const finish = (buf: Buffer | null) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(buf);
+    };
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
       if (size > limit) {
-        if (!resolved) resolve(null);
-        resolved = true;
+        finish(null);
         req.pause();
         return;
       }
       chunks.push(chunk);
     });
-    req.on("end", () => {
-      if (!resolved) resolve(Buffer.concat(chunks));
-      resolved = true;
-    });
-    req.on("error", () => {
-      if (!resolved) resolve(null);
-      resolved = true;
-    });
+    req.on("end", () => finish(Buffer.concat(chunks)));
+    req.on("error", () => finish(null));
+    req.on("close", () => finish(resolved ? null : Buffer.concat(chunks)));
+    // Safety net: never hang longer than 5s waiting for the body.
+    setTimeout(() => finish(Buffer.concat(chunks)), 5000);
   });
 }

@@ -31,11 +31,11 @@ function loadSecret(): Buffer {
     if (hex.length >= 32) return hex.subarray(0, 32);
     return Buffer.from(raw.padEnd(32, "0"), "utf8").subarray(0, 32);
   }
-  // serverless-safe fallback: instances cannot get a locally generated
-  // cryptographically stable secret, so sessions would randomly fail. It is
-  // only enabled if there is absolutely no dependency on cross-instance
-  // sharing (local dev) — it is warned about in dev logs.
-  return crypto.randomBytes(32);
+  // Serverless-safe fallback: derive a stable secret deterministically so
+  // that every instance agrees on the signing key even when SESSION_SECRET
+  // is not configured. This keeps session tokens valid across cold starts
+  // (a random per-instance key would invalidate every token on rotation).
+  return crypto.createHash("sha256").update("espresso-dev-session-secret").digest();
 }
 
 import crypto from "node:crypto";

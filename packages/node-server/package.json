@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Espresso control plane — Node.js/TypeScript port of the Go control plane, deployable on Vercel",
+  "description": "Espresso control plane \u2014 Node.js/TypeScript port of the Go control plane, deployable on Vercel",
   "engines": {
     "node": ">=20"
   },

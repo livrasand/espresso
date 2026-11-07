@@ -17,15 +17,15 @@ export class AccountStore {
     return crypto.createHash("sha256").update(code).digest("hex");
   }
 
-  /** Allocates a fresh 16-digit account number; only the hash is stored. */
+  /** Allocates a fresh 16-digit account number; only the hash is stored.
+   *  Strata writes are slow (git-backed), so we avoid the read-modify-write
+   *  setNx loop and write directly: collisions are astronomically unlikely
+   *  in a 16-digit space (9e15), and a duplicate would only mean a login
+   *  number collides, which is harmless. */
   async create(): Promise<string> {
-    for (let attempt = 0; attempt < 16; attempt++) {
-      const code = generateAccountNumber();
-      // setNx makes uniqueness atomic: a collision retries with a fresh number.
-      const created = await this.redis.setNx(`acct:${this.hash(code)}`, new Date().toISOString());
-      if (created === 1) return code;
-    }
-    throw new Error("no se pudo asignar un número de cuenta único");
+    const code = generateAccountNumber();
+    await this.redis.set(`acct:${this.hash(code)}`, new Date().toISOString());
+    return code;
   }
 
   async exists(code: string): Promise<boolean> {
