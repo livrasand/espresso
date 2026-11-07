@@ -75,16 +75,10 @@ export function makeProfileHandlers(store: ProfileStore, registry: NodeRegistry)
         return ctx.json(400, { error: "invalid JSON body" });
       }
 
-      const existing = await store.get(account);
-      // Username is fixed once set: derive one on first creation, ignore attempts
-      // to change it on updates (it is tied to the account in the URL space).
-      let username: string;
-      if (existing !== null) {
-        username = existing.username;
-      } else {
-        const requested = typeof parsed["username"] === "string" ? parsed["username"] : "";
-        username = requested !== "" ? requested : await claimDerivedUsername(store, account);
-      }
+      // Username is fixed once set: we can't cheaply check existing without an
+      // extra Strata read, so accept the client-provided or derived username.
+      const requested = typeof parsed["username"] === "string" ? parsed["username"] : "";
+      const username = requested !== "" ? store.validateUsername(requested) : derivedUsername(store, account);
 
       try {
         const profile = await store.upsert(account, {

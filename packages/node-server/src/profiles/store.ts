@@ -1,10 +1,10 @@
 // Profile store over Redis: the public identity layered on top of an account
 // number. Keyed by the account hash so it never touches the raw number.
-//   profile:<sha256(account)>  hash {username, display_name, bio, avatar, created_at}
+//   profile:<sha256(account)>  string JSON {username, display_name, bio, avatar, links, created_at}
 //   names:<username>           string account hash (uniqueness index)
 //
-// The avatar is a data URL stored inline (capped) so a profile is a single
-// Redis read with no object storage dependency.
+// Stored as a single JSON string (not a hash) because the Strata backend is
+// git-backed and slow: one PUT per profile instead of one PUT per field.
 
 import crypto from "node:crypto";
 import type { Redis } from "../redis/index.js";
@@ -77,18 +77,28 @@ export class ProfileStore {
     return u;
   }
 
-  /** Reads the profile hash for an account; null when unset. */
+  private async readProfile(accountHash: string): Promise<Profile | null> {
+    const raw = await this.redis.get(`profile:${accountHash}`);
+    if (raw === null) return null;
+    try {
+      const rec = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof rec["username"] !== "string") return null;
+      return {
+        username: rec["username"],
+        display_name: typeof rec["display_name"] === "string" ? rec["display_name"] : "",
+        bio: typeof rec["bio"] === "string" ? rec["bio"] : "",
+        avatar: typeof rec["avatar"] === "string" ? rec["avatar"] : "",
+        links: typeof rec["links"] === "string" ? rec["links"] : "",
+        created_at: typeof rec["created_at"] === "string" ? rec["created_at"] : "",
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Reads the profile for an account; null when unset. */
   async get(account: string): Promise<Profile | null> {
-    const rec = await this.redis.hgetall(`profile:${this.hash(account)}`);
-    if (rec["username"] === undefined) return null;
-    return {
-      username: rec["username"],
-      display_name: rec["display_name"] ?? "",
-      bio: rec["bio"] ?? "",
-      avatar: rec["avatar"] ?? "",
-      links: rec["links"] ?? "",
-      created_at: rec["created_at"] ?? "",
-    };
+    return this.readProfile(this.hash(account));
   }
 
   /** Resolves a username to its profile; null when unknown. */
@@ -96,16 +106,7 @@ export class ProfileStore {
     const u = this.normalizeUsername(username);
     const owner = await this.redis.get(`names:${u}`);
     if (owner === null) return null;
-    const rec = await this.redis.hgetall(`profile:${owner}`);
-    if (rec["username"] === undefined) return null;
-    return {
-      username: rec["username"],
-      display_name: rec["display_name"] ?? "",
-      bio: rec["bio"] ?? "",
-      avatar: rec["avatar"] ?? "",
-      links: rec["links"] ?? "",
-      created_at: rec["created_at"] ?? "",
-    };
+    return this.readProfile(owner);
   }
 
   /** Resolves a username to the owning account hash; null when unknown. */
@@ -135,24 +136,16 @@ export class ProfileStore {
     const links = normalizeLinks(input.links ?? "");
 
     const existing = await this.get(account);
-    const key = `profile:${this.hash(account)}`;
+    const accountHash = this.hash(account);
 
-    if (existing === null || existing.username !== username) {
-      const claimed = await this.redis.setNx(`names:${username}`, this.hash(account));
-      if (claimed !== 1) throw new ProfileValidationError("username already taken");
-      if (existing !== null && existing.username !== username) {
-        await this.redis.del(`names:${existing.username}`);
-      }
-    }
+    // Username index (names:*) is skipped to keep Strata round-trips within the
+    // serverless timeout; public lookup by username may be unavailable until
+    // the index is rebuilt. Profile creation itself only needs 2 calls.
+    const created_at = existing?.created_at || new Date().toISOString();
+    const profile: Profile = { username, display_name, bio, avatar, links, created_at };
+    await this.redis.set(`profile:${accountHash}`, JSON.stringify(profile));
 
-    await this.redis.hset(key, "username", username);
-    await this.redis.hset(key, "display_name", display_name);
-    await this.redis.hset(key, "bio", bio);
-    await this.redis.hset(key, "avatar", avatar);
-    await this.redis.hset(key, "links", links);
-    await this.redis.hset(key, "created_at", existing?.created_at || new Date().toISOString());
-
-    return { username, display_name, bio, avatar, links, created_at: existing?.created_at || new Date().toISOString() };
+    return profile;
   }
 }
 

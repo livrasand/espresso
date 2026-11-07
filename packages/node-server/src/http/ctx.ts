@@ -72,6 +72,24 @@ export function ctxFor(req: IncomingMessage, res: ServerResponse, preBody?: unkn
       }
     },
     async bodyBuffer(limit): Promise<Buffer | null> {
+      // Vercel's runtime pre-parses the body into req.body and fully
+      // consumes the stream. Prefer that when present (mirrors body()).
+      const pre = (req as unknown as { body?: unknown }).body;
+      if (pre !== undefined && pre !== null) {
+        if (Buffer.isBuffer(pre)) {
+          if (pre.length > limit) return null;
+          return pre;
+        }
+        if (typeof pre === "string") {
+          const b = Buffer.from(pre, "utf8");
+          if (b.length > limit) return null;
+          return b;
+        }
+        // pre-parsed JSON object → serialize back to a buffer
+        const b = Buffer.from(JSON.stringify(pre), "utf8");
+        if (b.length > limit) return null;
+        return b;
+      }
       const buf = await _readBody(req, limit);
       if (buf === null && Number(req.headers["content-length"] ?? "0") > limit) return null;
       return buf;
