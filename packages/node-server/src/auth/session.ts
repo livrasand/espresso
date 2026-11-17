@@ -5,7 +5,7 @@
 import crypto from "node:crypto";
 import { timingSafeEqual } from "node:crypto";
 
-export const SESSION_TTL_SECONDS = 24 * 60 * 60;
+export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 export function issueSessionToken(identity: string, secret: Buffer): string {
   const expiry = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;

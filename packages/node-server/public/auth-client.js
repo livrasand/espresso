@@ -5,7 +5,7 @@
  *   POST /api/accounts        (mint)
  *   POST /api/accounts/login  (issue session token)
  *   POST /api/accounts/backup (number behind session)
- * Session tokens are time-limited HMAC tokens (24h); the server accepts
+ * Session tokens are time-limited HMAC tokens (30 days); the server accepts
  * them via the X-ZKP-Token header (name kept for firmware compatibility).
  */
 'use strict';
