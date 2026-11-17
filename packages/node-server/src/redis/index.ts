@@ -95,14 +95,20 @@ export class Redis {
 import { StrataBackend } from "./strata.js";
 import { MemoryRedis } from "./memory.js";
 
-function backendFor(env: { strata: { url: string | null; token: string | null } }, warn: (m: string) => void): RedisLike {
+function backendFor(
+  env: { strata: { url: string | null; token: string | null; timeoutMs: number } },
+  warn: (m: string) => void,
+): RedisLike {
   if (env.strata.url && env.strata.token) {
-    return new StrataBackend(env.strata.url, env.strata.token);
+    return new StrataBackend(env.strata.url, env.strata.token, env.strata.timeoutMs);
   }
   warn("STRATA_URL/STRATA_TOKEN unset — using in-memory store (local dev only, data is volatile)");
   return new MemoryRedis();
 }
 
-export function redis(c: { strata: { url: string | null; token: string | null } }, warn: (m: string) => void): Redis {
+export function redis(
+  c: { strata: { url: string | null; token: string | null; timeoutMs: number } },
+  warn: (m: string) => void,
+): Redis {
   return new Redis(backendFor(c, warn));
 }

@@ -5,6 +5,8 @@ export interface Config {
   strata: {
     url: string | null;
     token: string | null;
+    /** Hard cap (ms) per Strata HTTP round trip (see STRATA_TIMEOUT_MS). */
+    timeoutMs: number;
   };
   /** Secret for HMAC session tokens (serverless: must come from env). */
   secret: Buffer;
@@ -48,6 +50,10 @@ export function config(): Config {
     strata: {
       url: env("STRATA_URL"),
       token: env("STRATA_TOKEN"),
+      // Cap each Strata round trip so a hung upstream (Strata → Codeberg)
+      // fails fast with a 500 instead of stalling until the serverless
+      // maxDuration kills the lambda.
+      timeoutMs: Math.max(1000, Number(env("STRATA_TIMEOUT_MS") ?? "10000") || 10000),
     },
     secret: loadSecret(),
     apiKey: env("ESPRESSO_API_KEY") ?? "",

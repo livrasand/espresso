@@ -30,9 +30,36 @@ export class StrataBackend implements RedisLike {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
+    private readonly timeoutMs = 10000,
   ) {}
 
   // ── HTTP plumbing ─────────────────────────────────────────────────────
+
+  /**
+   * fetch with a hard per-request timeout. Without this, a hung upstream
+   * (Strata waiting on its git host) stalls the lambda until the platform
+   * maxDuration kills it — observed as `FUNCTION_INVOCATION_TIMEOUT` after
+   * 60 s on POST /api/accounts.
+   */
+  private async http(url: string, init: RequestInit = {}): Promise<Response> {
+    return fetch(url, { ...init, signal: AbortSignal.timeout(this.timeoutMs) });
+  }
+
+  /**
+   * GET with one retry: Strata revalidates its state against its git host on
+   * every read, so transient upstream hiccups are common. Writes are NOT
+   * retried — an ambiguous failure (timeout after the commit landed) must not
+   * duplicate a journal op; the caller surfaces the error instead.
+   */
+  private async httpGet(url: string): Promise<Response> {
+    try {
+      return await this.http(url);
+    } catch (e) {
+      const name = String((e as { name?: string })?.name);
+      if (name !== "TimeoutError" && name !== "AbortError") throw e;
+      return this.http(url);
+    }
+  }
 
   private headers(json = false): Record<string, string> {
     const h: Record<string, string> = { Authorization: `Bearer ${this.token}` };
@@ -57,7 +84,7 @@ export class StrataBackend implements RedisLike {
 
   /** Reads the envelope for a key; null when absent or already expired. */
   private async read(k: string): Promise<Pkg | null> {
-    const res = await fetch(this.kvPath(k), { headers: this.headers() });
+    const res = await this.httpGet(this.kvPath(k));
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`strata GET ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`);
     const body = (await res.json()) as { value?: unknown };
@@ -82,7 +109,7 @@ export class StrataBackend implements RedisLike {
       if (ttlSec <= 0) {
         // Already expired — deleting is the equivalent write
         try {
-          await fetch(this.kvPath(k), { method: "DELETE", headers: this.headers() });
+          await this.http(this.kvPath(k), { method: "DELETE", headers: this.headers() });
         } catch {
           /* best effort cleanup */
         }
@@ -91,7 +118,7 @@ export class StrataBackend implements RedisLike {
     }
     const body: Record<string, unknown> = { value: JSON.stringify({ ...pkg, e: exp }) };
     if (exp !== null) body.ttl = Math.ceil((exp - Date.now()) / 1000);
-    const res = await fetch(this.kvPath(k), {
+    const res = await this.http(this.kvPath(k), {
       method: "PUT",
       headers: this.headers(true),
       body: JSON.stringify(body),
@@ -100,7 +127,7 @@ export class StrataBackend implements RedisLike {
   }
 
   private async remove(k: string): Promise<void> {
-    await fetch(this.kvPath(k), { method: "DELETE", headers: this.headers() });
+    await this.http(this.kvPath(k), { method: "DELETE", headers: this.headers() });
   }
 
   private static empty(typ: Pkg["t"]): unknown {
@@ -314,7 +341,7 @@ export class StrataBackend implements RedisLike {
       }
 
       case "KEYS": {
-        const res = await fetch(this.baseUrl.replace(/\/+$/, "") + "/keys", { headers: this.headers() });
+        const res = await this.httpGet(this.baseUrl.replace(/\/+$/, "") + "/keys");
         if (!res.ok) throw new Error(`strata KEYS ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`);
         const body = (await res.json()) as { keys?: string[] };
         const all = Array.isArray(body.keys) ? body.keys : [];
