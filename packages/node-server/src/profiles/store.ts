@@ -138,9 +138,14 @@ export class ProfileStore {
     const existing = await this.get(account);
     const accountHash = this.hash(account);
 
-    // Username index (names:*) is skipped to keep Strata round-trips within the
-    // serverless timeout; public lookup by username may be unavailable until
-    // the index is rebuilt. Profile creation itself only needs 2 calls.
+    if (existing === null || existing.username !== username) {
+      const claimed = await this.redis.setNx(`names:${username}`, accountHash);
+      if (claimed !== 1) throw new ProfileValidationError("username already taken");
+      if (existing !== null && existing.username !== username) {
+        await this.redis.del(`names:${existing.username}`);
+      }
+    }
+
     const created_at = existing?.created_at || new Date().toISOString();
     const profile: Profile = { username, display_name, bio, avatar, links, created_at };
     await this.redis.set(`profile:${accountHash}`, JSON.stringify(profile));
