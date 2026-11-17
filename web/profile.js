@@ -162,65 +162,98 @@
     if (state.mine) el.editToggle.hidden = false;
   }
 
+  async function fetchOwnProfile() {
+    try {
+      const res = await fetch(API + '/api/profile', { headers: Auth.authHeaders() });
+      if (!res.ok) return null;
+      const body = await res.json();
+      return (body && body.profile) || null;
+    } catch (e) { return null; }
+  }
+
+  function showSaved(p, message) {
+    renderProfile(p);
+    if (el.layout) el.layout.hidden = false;
+    if (el.create) { el.create.hidden = true; el.create.style.display = 'none'; }
+    el.editToggle.hidden = false;
+    closeEditor();
+    setStatus(message, false);
+    loadActivity(p.username);
+  }
+
   async function saveProfile(ev) {
     ev.preventDefault();
     el.save.disabled = true;
     setStatus('Saving…', false);
+    const fields = {
+      display_name: el.inputDisplay.value.trim(),
+      bio: el.inputBio.value.trim(),
+      avatar: el.inputAvatar.value.trim(),
+      links: el.inputLinks ? el.inputLinks.value.trim() : '',
+    };
     try {
       const res = await fetch(API + '/api/profile', {
         method: 'PUT',
         headers: Object.assign({ 'Content-Type': 'application/json' }, Auth.authHeaders()),
-        body: JSON.stringify({
-          display_name: el.inputDisplay.value.trim(),
-          bio: el.inputBio.value.trim(),
-          avatar: el.inputAvatar.value.trim(),
-          links: el.inputLinks ? el.inputLinks.value.trim() : '',
-        }),
+        body: JSON.stringify(fields),
       });
       let body = null;
       try { body = await res.json(); } catch (e) { /* non-JSON */ }
-      if (!res.ok) throw new Error((body && body.error) || 'save failed (' + res.status + ')');
-      renderProfile(body.profile);
-      if (el.layout) el.layout.hidden = false;
-      if (el.create) { el.create.hidden = true; el.create.style.display = 'none'; }
-      el.editToggle.hidden = false;
-      closeEditor();
-      setStatus('Profile saved.', false);
-      loadActivity(body.profile.username);
+      if (!res.ok) {
+        const failed = new Error((body && body.error) || 'save failed (' + res.status + ')');
+        failed.status = res.status;
+        throw failed;
+      }
+      showSaved(body.profile, 'Profile saved.');
     } catch (err) {
-      setStatus(err.message || 'save failed', true);
+      // A timed-out or 5xx response can still have been committed; check before reporting failure.
+      const saved = !err.status || err.status >= 500 ? await fetchOwnProfile() : null;
+      if (saved && Object.keys(fields).every((k) => (saved[k] || '') === fields[k])) {
+        showSaved(saved, 'Profile saved.');
+      } else {
+        setStatus(err.message || 'save failed', true);
+      }
     } finally {
       el.save.disabled = false;
     }
+  }
+
+  function showCreated(p) {
+    if (el.layout) el.layout.hidden = false;
+    renderProfile(p);
+    if (el.create) { el.create.hidden = true; el.create.style.display = 'none'; }
+    el.editToggle.hidden = false;
+    setStatus('Profile created.', false);
+    setTimeout(function () { setStatus('', false); }, 3000);
+    loadActivity(p.username);
   }
 
   async function createProfile() {
     if (!state.profile) state.profile = { username: '', display_name: '', bio: '', avatar: '', created_at: '' };
     el.create.disabled = true;
     setStatus('Creating profile…', false);
+    const sent = { username: state.profile.username || '', display_name: '', bio: '', avatar: '' };
     try {
       const res = await fetch(API + '/api/profile', {
         method: 'PUT',
         headers: Object.assign({ 'Content-Type': 'application/json' }, Auth.authHeaders()),
-        body: JSON.stringify({
-          username: state.profile.username || '',
-          display_name: '',
-          bio: '',
-          avatar: '',
-        }),
+        body: JSON.stringify(sent),
       });
       let body = null;
       try { body = await res.json(); } catch (e) { /* non-JSON */ }
-      if (!res.ok) throw new Error((body && body.error) || 'create failed (' + res.status + ')');
-      if (el.layout) el.layout.hidden = false;
-      renderProfile(body.profile);
-      if (el.create) { el.create.hidden = true; el.create.style.display = 'none'; }
-      el.editToggle.hidden = false;
-      setStatus('Profile created.', false);
-      setTimeout(function () { setStatus('', false); }, 3000);
-      loadActivity(body.profile.username);
+      if (!res.ok) {
+        const failed = new Error((body && body.error) || 'create failed (' + res.status + ')');
+        failed.status = res.status;
+        throw failed;
+      }
+      showCreated(body.profile);
     } catch (err) {
-      setStatus(err.message || 'create failed', true);
+      const saved = !err.status || err.status >= 500 ? await fetchOwnProfile() : null;
+      if (saved && (!sent.username || saved.username === sent.username)) {
+        showCreated(saved);
+      } else {
+        setStatus(err.message || 'create failed', true);
+      }
     } finally {
       el.create.disabled = false;
     }
