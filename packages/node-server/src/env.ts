@@ -53,7 +53,7 @@ export function config(): Config {
       // Cap each Strata round trip so a hung upstream (Strata → Codeberg)
       // fails fast with a 500 instead of stalling until the serverless
       // maxDuration kills the lambda.
-      timeoutMs: Math.max(1000, Number(env("STRATA_TIMEOUT_MS") ?? "10000") || 10000),
+      timeoutMs: Math.max(1000, Number(env("STRATA_TIMEOUT_MS") ?? "20000") || 20000),
     },
     secret: loadSecret(),
     apiKey: env("ESPRESSO_API_KEY") ?? "",
