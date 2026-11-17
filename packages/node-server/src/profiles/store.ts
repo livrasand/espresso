@@ -138,12 +138,12 @@ export class ProfileStore {
     const existing = await this.get(account);
     const accountHash = this.hash(account);
 
-    if (existing === null || existing.username !== username) {
-      const claimed = await this.redis.setNx(`names:${username}`, accountHash);
-      if (claimed !== 1) throw new ProfileValidationError("username already taken");
-      if (existing !== null && existing.username !== username) {
-        await this.redis.del(`names:${existing.username}`);
-      }
+    const claimed = await this.redis.setNx(`names:${username}`, accountHash);
+    if (claimed !== 1 && (await this.redis.get(`names:${username}`)) !== accountHash) {
+      throw new ProfileValidationError("username already taken");
+    }
+    if (existing !== null && existing.username !== username) {
+      await this.redis.del(`names:${existing.username}`);
     }
 
     const created_at = existing?.created_at || new Date().toISOString();
