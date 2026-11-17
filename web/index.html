@@ -13,6 +13,7 @@
   <script>
     document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';
   </script>
+  <script src="/auth-client.js"></script>
 </head>
 <body class="landing-page">
   <section class="landing-shell">
@@ -133,26 +134,43 @@
 
   <footer class="status-bar">
     <span class="status-prompt">home <span aria-hidden="true">_</span></span>
-    <span class="status-guest">
+    <span id="status-auth" class="status-guest">
       browsing as guest
       <a href="/login">(login)</a>
     </span>
   </footer>
 
   <script>
-    // Set this value from your authentication system if needed.
-    const isCurator = false;
+    (function () {
+      'use strict';
+      const session = window.EspressoAuth.session();
+      const statusEl = document.getElementById('status-auth');
+      const primaryAction = document.getElementById('primary-action');
+      const secondaryAction = document.getElementById('secondary-action');
 
-    const primaryAction = document.getElementById('primary-action');
-    const secondaryAction = document.getElementById('secondary-action');
+      if (session.token && session.account) {
+        // User is authenticated
+        statusEl.className = 'status-authenticated';
+        statusEl.innerHTML =
+          'signed in as <code>' +
+          String(session.account).replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+          }[c])) +
+          '</code> <a href="/dashboard">(dashboard)</a>';
 
-    if (isCurator) {
-      primaryAction.href = '/api/nodes';
-      primaryAction.textContent = 'Manage nodes';
+        primaryAction.href = '/dashboard';
+        primaryAction.textContent = 'Go to dashboard';
 
-      secondaryAction.href = '/health';
-      secondaryAction.textContent = 'System status';
-    }
+        secondaryAction.href = '#logout';
+        secondaryAction.textContent = 'Sign out';
+
+        secondaryAction.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.EspressoAuth.clearSession();
+          window.location.reload();
+        });
+      }
+    })();
   </script>
 </body>
 </html>

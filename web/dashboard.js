@@ -506,7 +506,7 @@
       );
       renderAccount();
       tokenModalRefresh();
-      setTokenStatus('New token generated — valid for the next 24 hours.');
+      setTokenStatus('New token generated — valid for the next 30 days.');
       await loadNodes();
     } catch (e) {
       setTokenStatus(e.message, true);
