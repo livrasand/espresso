@@ -52,12 +52,13 @@ export class StrataBackend implements RedisLike {
    * duplicate a journal op; the caller surfaces the error instead.
    */
   private async httpGet(url: string): Promise<Response> {
+    const init = { headers: this.headers() };
     try {
-      return await this.http(url);
+      return await this.http(url, init);
     } catch (e) {
       const name = String((e as { name?: string })?.name);
       if (name !== "TimeoutError" && name !== "AbortError") throw e;
-      return this.http(url);
+      return this.http(url, init);
     }
   }
 
