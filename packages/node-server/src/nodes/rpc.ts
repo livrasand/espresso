@@ -24,8 +24,10 @@ export function makeRpc(registry: NodeRegistry, opts: { rpcTimeoutMs: number; ma
     await registry.pushCommand(id, { req_id: reqId, action, ...params });
 
     const deadline = Date.now() + wait;
-    // Poll-poll (250 ms) until the node drains the inbox and posts the
-    // matching reply. Redis is the bus across working instances.
+    // Poll until the node drains the inbox and posts the matching reply
+    // (Redis is the bus across instances). Back off from 120 ms to 400 ms:
+    // fast replies are picked up quickly, slow ones don't hammer the store.
+    let delay = 120;
     while (Date.now() < deadline) {
       const resp = await registry.peekResponse(reqId);
       if (resp !== null) {
@@ -35,7 +37,8 @@ export function makeRpc(registry: NodeRegistry, opts: { rpcTimeoutMs: number; ma
         }
         return resp;
       }
-      await sleep(250);
+      await sleep(Math.min(delay, Math.max(0, deadline - Date.now())));
+      delay = Math.min(delay * 1.5, 400);
     }
     throw new RpcError(`timeout waiting for ${action} response`, 504);
   };

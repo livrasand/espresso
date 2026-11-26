@@ -16,9 +16,6 @@ export async function consumeRateLimit(redis: Redis, opts: RateLimitOptions): Pr
   const key = `rl:${opts.keyPrefix}:${opts.id}`;
   const now = Date.now();
   const member = `${now.toString(16)}${Math.random().toString(16).slice(2)}`;
-  await redis.zadd(key, now, member);
-  await redis.zremrangebyscore(key, "0", `(${now - opts.windowMs}`);
-  await redis.expire(key, Math.ceil(opts.windowMs / 1000) + 1);
-  const count = await redis.zcard(key);
+  const count = await redis.zwindow(key, now, member, opts.windowMs);
   return count > opts.max ? "reject" : "allow";
 }

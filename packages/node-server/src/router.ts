@@ -261,15 +261,15 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
   // /api/gg — repo browsing through the paired nodes (optional session;
   // anonymous browsing works in trusted-network mode). Handlers
   // decodeURIComponent their own path params.
-  if (match(/^\/api\/gg\/repos\/([^/]+)\/([^/]+)\/(tree|raw|info|branches|tags|commits|topics)$/)) {
+  if (match(/^\/api\/gg\/repos\/([^/]+)\/([^/]+)\/(tree|raw|info|branches|tags|refs|commits|topics)$/)) {
     applyOptionalSession(ctx, cfg);
-    const handlerName = m![3] as "tree" | "raw" | "info" | "branches" | "tags" | "commits" | "topics";
+    const handlerName = m![3] as "tree" | "raw" | "info" | "branches" | "tags" | "refs" | "commits" | "topics";
     return deps.ggH[handlerName](ctx, m![1]!, m![2]!);
   }
   // Short alias: /:owner/:repo/:action
-  if (match(/^\/([^/]+)\/([^/]+)\/(tree|raw|info|branches|tags|commits|topics)$/)) {
+  if (match(/^\/([^/]+)\/([^/]+)\/(tree|raw|info|branches|tags|refs|commits|topics)$/)) {
     applyOptionalSession(ctx, cfg);
-    const handlerName = m![3] as "tree" | "raw" | "info" | "branches" | "tags" | "commits" | "topics";
+    const handlerName = m![3] as "tree" | "raw" | "info" | "branches" | "tags" | "refs" | "commits" | "topics";
     return deps.ggH[handlerName](ctx, m![1]!, m![2]!);
   }
 

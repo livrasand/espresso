@@ -47,6 +47,17 @@ export class Redis {
     if (pairs.length === 0) return Promise.resolve(0);
     return this.exec(["HMSET", key, ...pairs]).then((r) => (typeof r === "number" ? r : 0));
   }
+  /** HMSET + EXPIRE in one round trip. */
+  hmsetEx(key: string, ttlSec: number, fields: Record<string, string>): Promise<number> {
+    const pairs: (string | number)[] = [];
+    for (const [f, v] of Object.entries(fields)) pairs.push(f, v);
+    if (pairs.length === 0) return Promise.resolve(0);
+    return this.exec(["HMSETEX", key, ttlSec, ...pairs]).then((r) => (typeof r === "number" ? r : 0));
+  }
+  /** Sliding-window hit: records `member` at `nowMs` and returns the live count. */
+  zwindow(key: string, nowMs: number, member: string, windowMs: number): Promise<number> {
+    return this.exec(["ZWINDOW", key, nowMs, member, windowMs]).then((r) => (typeof r === "number" ? r : 0));
+  }
   hget(key: string, field: string): Promise<string | null> {
     return this.exec(["HGET", key, field]) as Promise<string | null>;
   }

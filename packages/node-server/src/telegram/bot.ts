@@ -129,7 +129,7 @@ export function makeTelegramHandlers(deps: Deps) {
       }
       if (repos.length === 0) {
         try {
-          const view = await registry.nodeViewPublic(nodeId);
+          const view = await registry.nodeView(nodeId);
           const cached = (view as any)?.repositories ?? [];
           repos = Array.isArray(cached) ? cached.map((x: any) => (typeof x === "string" ? x : x?.name ?? "")).filter(Boolean) : [];
         } catch {

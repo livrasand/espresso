@@ -79,6 +79,28 @@ export class MemoryRedis implements RedisLike {
         this.kv.set(key, h);
         return n || (args.length - 1) / 2;
       }
+      case "HMSETEX": {
+        // args: key, ttlSec, field, value, ...
+        let h = this.alive(key);
+        if (!(h instanceof Map)) h = new Map();
+        for (let i = 2; i + 1 < args.length; i += 2) h.set(args[i]!, args[i + 1]!);
+        this.kv.set(key, h);
+        const ttl = Number(args[1]);
+        if (Number.isFinite(ttl) && ttl > 0) this.ttls.set(key, Date.now() + ttl * 1000);
+        return 1;
+      }
+      case "ZWINDOW": {
+        // args: key, nowMs, member, windowMs
+        const now = Number(args[1]);
+        const windowMs = Number(args[3]);
+        let z = this.alive(key) as ZEntry[] | undefined;
+        if (!Array.isArray(z)) z = [];
+        z = z.filter((e) => e.score >= now - windowMs);
+        z.push({ score: now, member: args[2] ?? "" });
+        this.kv.set(key, z);
+        this.ttls.set(key, now + windowMs + 1000);
+        return z.length;
+      }
       case "HGET": {
         const h = this.alive(key);
         return h instanceof Map ? (h.get(args[1] ?? "") ?? null) : null;

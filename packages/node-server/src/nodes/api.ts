@@ -265,45 +265,70 @@ export function makeApiHandlers(deps: ApiDeps) {
 export function makeGGHandlers(deps: ApiDeps) {
   const { registry, callNode } = deps;
 
+  /** Short-lived per-instance memo; avoids repeating identical node RPCs and
+   * lookups when a page fires several requests for the same repo at once. */
+  const memo = new Map<string, { at: number; value: Promise<unknown> }>();
+  function memoized<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+    const hit = memo.get(key);
+    if (hit && Date.now() - hit.at < ttlMs) return hit.value as Promise<T>;
+    const value = fn();
+    memo.set(key, { at: Date.now(), value });
+    value.catch(() => memo.delete(key));
+    if (memo.size > 200) {
+      for (const [k, v] of memo) if (Date.now() - v.at >= ttlMs) memo.delete(k);
+    }
+    return value;
+  }
+
+  /** Accounts that may own `account` (a raw account or a username). */
+  function candidateAccounts(account: string): Promise<string[]> {
+    const profiles = deps.profiles;
+    if (!profiles) return Promise.resolve([account]);
+    return memoized(`acc:${account}`, 30_000, async () => {
+      const accountHash = await profiles.accountHashForUsername(account);
+      if (accountHash === null) return [account];
+      const all = await registry.allAccounts();
+      return all.filter((a) => profiles.hash(a) === accountHash);
+    });
+  }
+
   async function nodeForAccountRepo(
     ctx: HttpCtx,
     account: string,
     repo: string,
   ): Promise<{ id: string; owner: string } | null> {
-    const profiles = deps.profiles;
-    let accounts = [account];
-    if (profiles) {
-      const accountHash = await profiles.accountHashForUsername(account);
-      if (accountHash !== null) {
-        const all = await registry.list();
-        const matched = all
-          .filter((n) => {
-            const acct = str(n["account"]);
-            return acct !== "" && profiles.hash(acct) === accountHash;
-          })
-          .map((n) => str(n["account"]))
-          .filter((a) => a !== "");
-        accounts = matched.length > 0 ? [...new Set(matched)] : [];
-      }
-    }
-    for (const acct of accounts) {
-      const nodes = await registry.listByAccount(acct);
-      for (const n of nodes) {
-        const id = str(n["id"]);
-        if ((await registry.isOnline(id)) === false) continue;
-        const repos = Array.isArray(n["repositories"]) ? (n["repositories"] as RepoEntry[]) : [];
-        if (repos.some((r) => r.name === repo)) {
-          return { id, owner: acct };
+    const accounts = await candidateAccounts(account);
+    // Check every candidate account's nodes concurrently.
+    const found = await Promise.all(
+      accounts.map(async (acct) => {
+        const nodes = await registry.listByAccount(acct);
+        for (const n of nodes) {
+          if (n["online"] !== true) continue;
+          const repos = Array.isArray(n["repositories"]) ? (n["repositories"] as RepoEntry[]) : [];
+          if (repos.some((r) => r.name === repo)) return { id: str(n["id"]), owner: acct };
         }
-      }
-    }
+        return null;
+      }),
+    );
+    const hit = found.find((f) => f !== null);
+    if (hit) return hit;
     ctx.json(404, { error: "repo not found on any online node" });
     return null;
   }
 
-  async function rpcOr(ctx: HttpCtx, id: string, action: string, params: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  async function rpcOr(
+    ctx: HttpCtx,
+    id: string,
+    action: string,
+    params: Record<string, unknown>,
+    cacheMs = false,
+  ): Promise<Record<string, unknown> | null> {
     try {
-      return await callNode(id, action, params);
+      // Read-only refs lookups are memoized for 10 s (branches + tags + the
+      // commit list are all answered by one refs_list round trip).
+      return cacheMs
+        ? await memoized(`rpc:${id}:${action}:${JSON.stringify(params)}`, 10_000, () => callNode(id, action, params))
+        : await callNode(id, action, params);
     } catch (e) {
       const rpc = e as RpcError;
       ctx.json(rpc.status ?? 502, { error: rpc.message });
@@ -316,7 +341,7 @@ export function makeGGHandlers(deps: ApiDeps) {
     id: string,
     repo: string,
   ): Promise<{ branches: string[]; tags: string[]; commits: string[] } | null> {
-    const resp = await rpcOr(ctx, id, "refs_list", { repo });
+    const resp = await rpcOr(ctx, id, "refs_list", { repo }, true);
     if (resp === null) return null;
     const pickArr = (key: string): string[] => {
       if (Array.isArray(resp[key])) return (resp[key] as unknown[]).filter((x): x is string => typeof x === "string");
@@ -386,17 +411,27 @@ export function makeGGHandlers(deps: ApiDeps) {
       if (live === null) return;
       const bt = await branchesAndTags(ctx, live.id, repo);
       if (bt === null) return;
-    ctx.json(200, { branches: bt.branches, commits: bt.commits });
-  },
-  async tags(ctx: HttpCtx, owner: string, repo: string): Promise<void> {
-    repo = decodeURIComponent(repo);
-    owner = decodeURIComponent(owner);
-    const live = await nodeForAccountRepo(ctx, owner, repo);
-    if (live === null) return;
-    const bt = await branchesAndTags(ctx, live.id, repo);
-    if (bt === null) return;
-    ctx.json(200, { tags: bt.tags });
-  },
+      ctx.json(200, { branches: bt.branches, commits: bt.commits });
+    },
+    async tags(ctx: HttpCtx, owner: string, repo: string): Promise<void> {
+      repo = decodeURIComponent(repo);
+      owner = decodeURIComponent(owner);
+      const live = await nodeForAccountRepo(ctx, owner, repo);
+      if (live === null) return;
+      const bt = await branchesAndTags(ctx, live.id, repo);
+      if (bt === null) return;
+      ctx.json(200, { tags: bt.tags });
+    },
+    /** Branches + tags + commits in a single request (used by the dashboard). */
+    async refs(ctx: HttpCtx, owner: string, repo: string): Promise<void> {
+      repo = decodeURIComponent(repo);
+      owner = decodeURIComponent(owner);
+      const live = await nodeForAccountRepo(ctx, owner, repo);
+      if (live === null) return;
+      const bt = await branchesAndTags(ctx, live.id, repo);
+      if (bt === null) return;
+      ctx.json(200, bt);
+    },
     async commits(ctx: HttpCtx, owner: string, repo: string): Promise<void> {
       repo = decodeURIComponent(repo);
       owner = decodeURIComponent(owner);

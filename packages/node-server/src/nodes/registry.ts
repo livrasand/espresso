@@ -108,12 +108,19 @@ export class NodeRegistry {
 
   /** Marks liveness after a hello/poll; returns true when transitioning online. */
   async touchOnline(id: string, name?: string, fw?: string): Promise<boolean> {
-    const was = await this.redis.exists(`online:${id}`);
+    // Only write the node record when name/firmware actually changed: the
+    // record (served from cache) almost never differs between polls, so the
+    // steady-state heartbeat is just EXISTS + SET.
+    const wasOnlineP = this.redis.exists(`online:${id}`);
+    const rec = await this.getNode(id);
     const fields: Record<string, string> = {};
-    if (name !== undefined && name !== "") fields["name"] = name;
-    if (fw !== undefined && fw !== "") fields["firmware"] = fw;
-    if (Object.keys(fields).length > 0) await this.redis.hmset(`node:${id}`, fields);
-    await this.redis.set(`online:${id}`, "1", "EX", this.onlineTtlSec);
+    if (name !== undefined && name !== "" && rec?.["name"] !== name) fields["name"] = name;
+    if (fw !== undefined && fw !== "" && rec?.["firmware"] !== fw) fields["firmware"] = fw;
+    const [was] = await Promise.all([
+      wasOnlineP,
+      Object.keys(fields).length > 0 ? this.redis.hmset(`node:${id}`, fields) : Promise.resolve(0),
+      this.redis.set(`online:${id}`, "1", "EX", this.onlineTtlSec),
+    ]);
     return !was;
   }
 
@@ -138,31 +145,26 @@ export class NodeRegistry {
       wifi_rssi?: number;
     },
   ): Promise<void> {
-    const fields: Record<string, string> = {};
-    if (telemetry.uptime_s !== undefined) fields["uptime_s"] = String(Math.floor(telemetry.uptime_s));
-    if (telemetry.storage_free !== undefined) fields["storage_free"] = String(Math.floor(telemetry.storage_free));
-    if (telemetry.storage_total !== undefined) fields["storage_total"] = String(Math.floor(telemetry.storage_total));
-    if (telemetry.ram_total !== undefined) fields["ram_total"] = String(Math.floor(telemetry.ram_total));
-    if (telemetry.heap_free !== undefined) fields["heap_free"] = String(Math.floor(telemetry.heap_free));
-    if (telemetry.wifi_rssi !== undefined) fields["wifi_rssi"] = String(Math.floor(telemetry.wifi_rssi));
-    if (Object.keys(fields).length > 0) await this.redis.hmset(`ninfo:${id}`, fields);
-    void this.redis.expire(`ninfo:${id}`, this.onlineTtlSec * 24);
+    const fields: Record<string, string> = { lastSeen: new Date().toISOString() };
+    for (const [k, v] of Object.entries(telemetry)) {
+      if (v !== undefined) fields[k] = String(Math.floor(v));
+    }
+    await this.redis.hmsetEx(`ninfo:${id}`, this.onlineTtlSec * 24, fields);
   }
 
   async updateRepos(id: string, repos: RepoEntry[]): Promise<void> {
-    await this.redis.hset(`ninfo:${id}`, "repositories", JSON.stringify(repos));
-    void this.redis.expire(`ninfo:${id}`, this.onlineTtlSec * 24);
+    await this.redis.hmsetEx(`ninfo:${id}`, this.onlineTtlSec * 24, { repositories: JSON.stringify(repos) });
   }
 
   // ── dashboard views ────────────────────────────────────────────────
 
-  async nodeViewPublic(id: string): Promise<Record<string, unknown>> {
-    return this.nodeView(id);
-  }
-  private async nodeView(id: string): Promise<Record<string, unknown>> {
-    const rec = (await this.getNode(id)) ?? {};
-    const info = await this.redis.hgetall(`ninfo:${id}`);
-    const online = await this.isOnline(id);
+  async nodeView(id: string): Promise<Record<string, unknown>> {
+    const [rec0, info, online] = await Promise.all([
+      this.getNode(id),
+      this.redis.hgetall(`ninfo:${id}`),
+      this.isOnline(id),
+    ]);
+    const rec = rec0 ?? {};
     let repos = [] as RepoEntry[];
     if (typeof info["repositories"] === "string" && info["repositories"] !== "") {
       try {
@@ -191,6 +193,13 @@ export class NodeRegistry {
   async listByAccount(account: string): Promise<Record<string, unknown>[]> {
     const ids = await this.redis.smembers(`acct:${account}`);
     return Promise.all(ids.map((id) => this.nodeView(id)));
+  }
+
+  /** Distinct owner accounts across every node (cheap: node records only). */
+  async allAccounts(): Promise<string[]> {
+    const ids = await this.redis.keys("node:*");
+    const recs = await Promise.all(ids.map((id) => this.getNode(id.slice(5))));
+    return [...new Set(recs.map((r) => r?.["account"] ?? "").filter((a) => a !== ""))];
   }
 
   async list(): Promise<Record<string, unknown>[]> {

@@ -26,7 +26,21 @@ import type { RedisLike, RedisReply } from "./index.js";
 
 type Pkg = { t: "s" | "h" | "l" | "se" | "z"; e: number | null; v: unknown };
 
+/**
+ * Keys whose staleness is harmless (node records, node telemetry, account
+ * membership, profile lookups). Everything else — liveness, inboxes, RPC
+ * responses, pairing codes, rate limits — is always read fresh because other
+ * serverless instances write to them.
+ */
+const CACHEABLE_PREFIXES = ["node:", "ninfo:", "profile:", "names:"];
+const READ_CACHE_TTL_MS = 3000;
+const KEYS_CACHE_TTL_MS = 5000;
+
 export class StrataBackend implements RedisLike {
+  private readonly cache = new Map<string, { raw: string | null; at: number }>();
+  private readonly inflight = new Map<string, Promise<string | null>>();
+  private keysCache: { keys: string[]; at: number } | null = null;
+
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
@@ -89,21 +103,46 @@ export class StrataBackend implements RedisLike {
     return this.baseUrl.replace(/\/+$/, "") + `/kv/${this.pathKey(k)}`;
   }
 
-  private bodyOf(res: Response, statusText: string): Promise<string> {
-    return res.text().then((t) => t.slice(0, 200));
+  private static cacheable(k: string): boolean {
+    return CACHEABLE_PREFIXES.some((p) => k.startsWith(p));
   }
 
-  /** Reads the envelope for a key; null when absent or already expired. */
-  private async read(k: string): Promise<Pkg | null> {
-    const res = await this.httpGet(this.kvPath(k));
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`strata GET ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`);
-    const body = (await res.json()) as { value?: unknown };
-    if (body.value === undefined || body.value === null) return null;
-    if (typeof body.value !== "string") body.value = JSON.stringify(body.value);
+  /** Raw GET of the stored value string (null when absent). Concurrent reads
+   * of the same key share one HTTP request. */
+  private fetchRaw(k: string): Promise<string | null> {
+    const pending = this.inflight.get(k);
+    if (pending) return pending;
+    const p = (async () => {
+      const res = await this.httpGet(this.kvPath(k));
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`strata GET ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`);
+      const body = (await res.json()) as { value?: unknown };
+      if (body.value === undefined || body.value === null) return null;
+      return typeof body.value === "string" ? body.value : JSON.stringify(body.value);
+    })().finally(() => this.inflight.delete(k));
+    this.inflight.set(k, p);
+    return p;
+  }
+
+  /**
+   * Reads the envelope for a key; null when absent or already expired.
+   * `fresh` bypasses the short-lived cache — required before any
+   * read-modify-write so concurrent updates are not clobbered with stale data.
+   */
+  private async read(k: string, fresh = false): Promise<Pkg | null> {
+    let raw: string | null;
+    const useCache = !fresh && StrataBackend.cacheable(k);
+    const hit = useCache ? this.cache.get(k) : undefined;
+    if (hit && Date.now() - hit.at < READ_CACHE_TTL_MS) {
+      raw = hit.raw;
+    } else {
+      raw = await this.fetchRaw(k);
+      if (StrataBackend.cacheable(k)) this.cache.set(k, { raw, at: Date.now() });
+    }
+    if (raw === null) return null;
     let pkg: Pkg;
     try {
-      pkg = JSON.parse(String(body.value));
+      pkg = JSON.parse(raw);
     } catch {
       return null;
     }
@@ -112,9 +151,15 @@ export class StrataBackend implements RedisLike {
     return pkg;
   }
 
+  private invalidate(k: string): void {
+    this.cache.delete(k);
+    this.keysCache = null;
+  }
+
   /** Writes an envelope, trimming the expiry if it already elapsed. */
   private async write(k: string, pkg: Pkg): Promise<void> {
-    let exp = pkg.e;
+    const exp = pkg.e;
+    this.invalidate(k);
     if (exp !== null) {
       const ttlSec = Math.ceil((exp - Date.now()) / 1000);
       if (ttlSec <= 0) {
@@ -127,7 +172,8 @@ export class StrataBackend implements RedisLike {
         return;
       }
     }
-    const body: Record<string, unknown> = { value: JSON.stringify({ ...pkg, e: exp }) };
+    const serialized = JSON.stringify(pkg);
+    const body: Record<string, unknown> = { value: serialized };
     if (exp !== null) body.ttl = Math.ceil((exp - Date.now()) / 1000);
     const res = await this.http(this.kvPath(k), {
       method: "PUT",
@@ -135,9 +181,12 @@ export class StrataBackend implements RedisLike {
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`strata PUT ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`);
+    // Write-through so this instance sees its own write immediately.
+    if (StrataBackend.cacheable(k)) this.cache.set(k, { raw: serialized, at: Date.now() });
   }
 
   private async remove(k: string): Promise<void> {
+    this.invalidate(k);
     await this.http(this.kvPath(k), { method: "DELETE", headers: this.headers() });
   }
 
@@ -189,15 +238,17 @@ export class StrataBackend implements RedisLike {
         }
         const exp =
           exSec !== null && Number.isFinite(exSec) && exSec > 0 ? Date.now() + exSec * 1000 : null;
-        if (nx && (await this.read(k))) return 0;
+        if (nx && (await this.read(k, true))) return 0;
         await this.write(k, { t: "s", e: exp, v: String(args[0] ?? "") });
         return "OK";
       }
 
       case "DEL": {
         const k = String(key);
-        if (!(await this.read(k))) return 0;
-        await this.remove(k);
+        this.invalidate(k);
+        const res = await this.http(this.kvPath(k), { method: "DELETE", headers: this.headers() });
+        if (res.status === 404) return 0;
+        if (!res.ok) throw new Error(`strata DELETE ${res.status}`);
         return 1;
       }
 
@@ -213,7 +264,7 @@ export class StrataBackend implements RedisLike {
 
       case "EXPIRE": {
         const k = String(key);
-        const pkg = await this.read(k);
+        const pkg = await this.read(k, true);
         if (!pkg) return 0;
         const sec = Number(args[0]);
         await this.write(k, { ...pkg, e: Date.now() + sec * 1000 });
@@ -222,7 +273,7 @@ export class StrataBackend implements RedisLike {
 
       case "HMSET": {
         const k = String(key);
-        const existing = await this.read(k);
+        const existing = await this.read(k, true);
         const obj = (existing && existing.t === "h" ? existing.v : {}) as Record<string, string>;
         let added = 0;
         for (let i = 0; i + 1 < args.length; i += 2) {
@@ -235,9 +286,39 @@ export class StrataBackend implements RedisLike {
         return added || Object.keys(obj).length;
       }
 
+      case "HMSETEX": {
+        // ["HMSETEX", key, ttlSec, field, value, ...] — HMSET + EXPIRE in one
+        // read-modify-write (the expiry used to cost a second round trip).
+        const k = String(key);
+        const ttl = Number(args[0]);
+        const existing = await this.read(k, true);
+        const obj = (existing && existing.t === "h" ? existing.v : {}) as Record<string, string>;
+        for (let i = 1; i + 1 < args.length; i += 2) obj[String(args[i])] = String(args[i + 1] ?? "");
+        const e = Number.isFinite(ttl) && ttl > 0 ? Date.now() + ttl * 1000 : (existing?.e ?? null);
+        await this.write(k, { t: "h", e, v: obj });
+        return 1;
+      }
+
+      case "ZWINDOW": {
+        // ["ZWINDOW", key, nowMs, member, windowMs] — sliding-window hit:
+        // prune old entries, add this one, return the count. One read + one
+        // write instead of ZADD+ZREMRANGEBYSCORE+EXPIRE+ZCARD (7 requests).
+        const k = String(key);
+        const now = Number(args[0]);
+        const member = String(args[1]);
+        const windowMs = Number(args[2]);
+        const existing = await this.read(k, true);
+        const z = (existing && existing.t === "z" ? existing.v : {}) as Record<string, number>;
+        const kept: Record<string, number> = {};
+        for (const [m, sc] of Object.entries(z)) if (sc >= now - windowMs) kept[m] = sc;
+        kept[member] = now;
+        await this.write(k, { t: "z", e: now + windowMs + 1000, v: kept });
+        return Object.keys(kept).length;
+      }
+
       case "HSET": {
         const k = String(key);
-        const existing = await this.read(k);
+        const existing = await this.read(k, true);
         const obj = (existing && existing.t === "h" ? existing.v : {}) as Record<string, string>;
         const field = String(args[0]);
         obj[field] = String(args[1] ?? "");
@@ -263,7 +344,7 @@ export class StrataBackend implements RedisLike {
         const k = String(key);
         const vals = args.map((a) => String(a));
         if (vals.length === 0) return 0;
-        const existing = await this.read(k);
+        const existing = await this.read(k, true);
         const list =
           existing && (existing.t === "l" || existing.t === "se")
             ? (existing.v as string[])
@@ -276,7 +357,7 @@ export class StrataBackend implements RedisLike {
       case "LPOP": {
         // ["LPOP", key, count] → array, ["LPOP", key] → single item / null
         const k = String(key);
-        const pkg = await this.read(k);
+        const pkg = await this.read(k, true);
         if (!pkg || !Array.isArray(pkg.v) || (pkg.v as string[]).length === 0) {
           return args.length > 0 ? [] : null;
         }
@@ -292,7 +373,7 @@ export class StrataBackend implements RedisLike {
       case "SADD": {
         const k = String(key);
         if (args.length === 0) return 0;
-        const existing = await this.read(k);
+        const existing = await this.read(k, true);
         const set = new Set<string>(
           existing && (existing.t === "se" || existing.t === "l") ? (existing.v as string[]) : [],
         );
@@ -317,7 +398,7 @@ export class StrataBackend implements RedisLike {
       case "SREM": {
         const k = String(key);
         const members = new Set(args.map((a) => String(a)));
-        const pkg = await this.read(k);
+        const pkg = await this.read(k, true);
         if (!pkg || !Array.isArray(pkg.v)) return 0;
         const list = pkg.v as string[];
         const kept = list.filter((m) => !members.has(m));
@@ -331,7 +412,7 @@ export class StrataBackend implements RedisLike {
         const k = String(key);
         const score = Number(args[0]);
         const member = String(args[1] ?? "");
-        const existing = await this.read(k);
+        const existing = await this.read(k, true);
         const z = (existing && existing.t === "z" ? existing.v : {}) as Record<string, number>;
         const isNew = !(member in z) || z[member] !== score;
         z[member] = score;
@@ -341,7 +422,7 @@ export class StrataBackend implements RedisLike {
 
       case "ZREMRANGEBYSCORE": {
         const k = String(key);
-        const pkg = await this.read(k);
+        const pkg = await this.read(k, true);
         if (!pkg || pkg.t !== "z") return 0;
         const z = pkg.v as Record<string, number>;
         const min = StrataBackend.bound(args[0]);
@@ -367,10 +448,16 @@ export class StrataBackend implements RedisLike {
       }
 
       case "KEYS": {
-        const res = await this.httpGet(this.baseUrl.replace(/\/+$/, "") + "/keys");
-        if (!res.ok) throw new Error(`strata KEYS ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`);
-        const body = (await res.json()) as { keys?: string[] };
-        const all = Array.isArray(body.keys) ? body.keys : [];
+        let all: string[];
+        if (this.keysCache && Date.now() - this.keysCache.at < KEYS_CACHE_TTL_MS) {
+          all = this.keysCache.keys;
+        } else {
+          const res = await this.httpGet(this.baseUrl.replace(/\/+$/, "") + "/keys");
+          if (!res.ok) throw new Error(`strata KEYS ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`);
+          const body = (await res.json()) as { keys?: string[] };
+          all = Array.isArray(body.keys) ? body.keys : [];
+          this.keysCache = { keys: all, at: Date.now() };
+        }
         const re = StrataBackend.globRe(String(key));
         return all.filter((k) => re.test(k));
       }
