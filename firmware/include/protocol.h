@@ -223,6 +223,10 @@ public:
             }
         } else if (action == "storage_status") {
             handleStorageStatus(reqId);
+        } else if (action == "restart") {
+            respondAck(reqId);
+            delay(200);
+            ESP.restart();
         } else {
             respondError(reqId, "unsupported_action");
         }

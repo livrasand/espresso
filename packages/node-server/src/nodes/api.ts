@@ -250,7 +250,8 @@ export function makeApiHandlers(deps: ApiDeps) {
       const body = (await ctx.body()) as JsonBody | null;
       const action = str(body?.action);
       if (body === null || action === "") return ctx.json(400, { error: "action required" });
-      if (action !== "ping") return ctx.json(400, { error: "unsupported action" });
+      const allowed = new Set(["ping", "storage_reinit", "storage_status", "restart"]);
+      if (!allowed.has(action)) return ctx.json(400, { error: "unsupported action" });
       const params = typeof body?.params === "object" && body.params !== null ? (body.params as Record<string, unknown>) : {};
       const resp = await rpcOr(ctx, live.id, action, params);
       if (resp === null) return;

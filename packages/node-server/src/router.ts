@@ -15,6 +15,7 @@ import { makeProfileHandlers } from "./profiles/handlers.js";
 import { NodeRegistry } from "./nodes/registry.js";
 import { makeIngestHandlers } from "./nodes/ingest.js";
 import { makeApiHandlers, makeGGHandlers } from "./nodes/api.js";
+import { makeTelegramHandlers } from "./telegram/bot.js";
 import { makeRpc } from "./nodes/rpc.js";
 import { makeGitHttpHandlers } from "./git/http.js";
 import { applySecurityHeaders, applyLocalhostCORS, apiKeyOk } from "./http/security.js";
@@ -70,6 +71,7 @@ export function buildApp(options: AppOptions = {}): App {
   apiH: makeApiHandlers({ registry, callNode }),
   ggH: makeGGHandlers({ registry, callNode, profiles }),
   gitH: makeGitHttpHandlers({ registry, callNode }),
+  telegramH: makeTelegramHandlers({ registry, callNode }),
   staticServer: options.staticDir ? makeStaticServer(options.staticDir) : null,
   };
 
@@ -90,6 +92,7 @@ interface RouteDeps {
   apiH: ReturnType<typeof makeApiHandlers>;
   ggH: ReturnType<typeof makeGGHandlers>;
   gitH: ReturnType<typeof makeGitHttpHandlers>;
+  telegramH: ReturnType<typeof makeTelegramHandlers>;
   staticServer: StaticServer | null;
 }
 
@@ -153,6 +156,7 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
 
   if (path === "/health" && method === "GET") return health(deps, ctx, cfg);
   if (path === "/metrics" && method === "GET") return metrics(ctx);
+  if (path === "/api/telegram/webhook" && method === "POST") return deps.telegramH.webhook(ctx);
 
   // Node Protocol v2: nodes initiate (outbound), no open ports, no WS.
   if (path === "/node/pair") return method === "POST" ? deps.ingestH.pair(ctx) : notFound(ctx, path);

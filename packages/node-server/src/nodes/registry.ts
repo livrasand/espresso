@@ -156,6 +156,9 @@ export class NodeRegistry {
 
   // ── dashboard views ────────────────────────────────────────────────
 
+  async nodeViewPublic(id: string): Promise<Record<string, unknown>> {
+    return this.nodeView(id);
+  }
   private async nodeView(id: string): Promise<Record<string, unknown>> {
     const rec = (await this.getNode(id)) ?? {};
     const info = await this.redis.hgetall(`ninfo:${id}`);
@@ -220,6 +223,14 @@ export class NodeRegistry {
 
   pendingCodeFor(id: string): Promise<string | null> {
     return this.redis.get(`pairbyId:${id}`);
+  }
+
+  async setTelegramChat(chatId: number, account: string): Promise<void> {
+    await this.redis.set(`tg:chat:${chatId}`, account);
+  }
+
+  async getTelegramChat(chatId: number): Promise<string | null> {
+    return this.redis.get(`tg:chat:${chatId}`);
   }
 
   async pairingByCode(code: string): Promise<PendingPairing | null> {

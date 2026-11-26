@@ -133,6 +133,27 @@ The deployed control plane lives at:
 |---|-----|------|
 | Web + API | `https://espresso.livrasand.com` | `443` (HTTPS) |
 
+## Telegram bot (optional)
+
+Control your nodes from Telegram with **@espressoforgebot**:
+
+1. Open the bot in Telegram and send `/start`.
+2. Link your account with `/link <your_account_number>`.
+3. Use the commands:
+
+   | Command | Description |
+   |---------|-------------|
+   | `/nodes` | List your nodes |
+   | `/repos <node>` | List repositories on a node |
+   | `/create <node> <repo>` | Create a repository |
+   | `/delete <node> <repo>` | Delete a repository |
+   | `/ping <node>` | Ping a node |
+   | `/status <node>` | Storage status |
+   | `/restart <node>` | Restart a node |
+
+   Your account number is shown only once at registration — keep it safe, it's
+   the key to your node. Never share it in public chats.
+
 ## Hardware
 
 Tested targets: ESP32. Test reports for other ESP32 variants are very welcome!
