@@ -78,6 +78,30 @@
     }[c]));
   }
 
+  async function copyText(btn, text) {
+    try {
+      if (navigator.clipboard) await navigator.clipboard.writeText(text);
+      else { const x = document.createElement('textarea'); x.value = text; document.body.appendChild(x); x.select(); document.execCommand('copy'); x.remove(); }
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
+    } catch (e) { btn.textContent = 'Error'; }
+  }
+
+  // Run async jobs with bounded concurrency: each repo detail is an RPC to a
+  // small ESP32, so firing them all at once just queues them on the device.
+  function createLimiter(max) {
+    let active = 0;
+    const queue = [];
+    const next = () => {
+      if (active >= max || queue.length === 0) return;
+      active++;
+      const job = queue.shift();
+      job().finally(() => { active--; next(); });
+    };
+    return (job) => { queue.push(job); next(); };
+  }
+  const detailLimit = createLimiter(2);
+
   function fmtBytes(n) {
     const v = Number(n);
     if (!Number.isFinite(v) || v <= 0) return '0 B';
@@ -143,15 +167,9 @@
       btn.addEventListener('click', () => selectNode(btn.getAttribute('data-node')));
     });
     el.nodelist.querySelectorAll('[data-copy]').forEach((btn) => {
-      btn.addEventListener('click', async (ev) => {
+      btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        const t = btn.getAttribute('data-copy');
-        try {
-          if (navigator.clipboard) await navigator.clipboard.writeText(t);
-          else { const x = document.createElement('textarea'); x.value = t; document.body.appendChild(x); x.select(); document.execCommand('copy'); x.remove(); }
-          btn.textContent = 'Copied';
-          setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
-        } catch (e) { btn.textContent = 'Error'; }
+        copyText(btn, btn.getAttribute('data-copy'));
       });
     });
   }
@@ -181,7 +199,8 @@
     el.repolist.querySelectorAll('.dash-repo').forEach((li) => {
       const name = li.querySelector('.dash-repo-name').textContent;
       const detail = li.querySelector('.dash-repo-detail');
-      loadRepoDetail(name, detail);
+      const nodeId = state.selected;
+      detailLimit(() => loadRepoDetail(name, detail, nodeId));
       const del = li.querySelector('.dash-delete-btn');
       if (del) {
         del.addEventListener('click', () => openDeleteModal(name));
@@ -196,44 +215,42 @@
         '<span class="dash-repo-detail-label">' + esc(label) + '</span>' +
         (items.length ? items.map(chip).join('') : '<span class="dash-chip">none</span>') +
       '</div>';
-  const api = '/' + encodeURIComponent(Auth.session().account || '') + '/' + encodeURIComponent(repo || '');
-  const ownerSlug = state.username ? (state.username) : (Auth.session().account || '');
-  const cloneUrl = 'git clone ' + location.protocol + '//' + location.host + '/' + encodeURIComponent(ownerSlug) + '/' + encodeURIComponent(repo || '') + '.git';
-     detail.innerHTML =
-       group('Branches', branches) +
-       group('Tags', tags) +
-       group('Commits', commits) +
-        '<div class="dash-repo-detail-group">' +
-          '<span class="dash-repo-detail-label">Clone</span>' +
-          '<span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-            '<code class="dash-repo-code" style="margin:0;">' + esc(cloneUrl) + '</code>' +
-            '<button type="button" class="dash-copy-btn" style="position:static;" data-clone="' + esc(cloneUrl) + '" onclick="(async(b)=>{const t=b.dataset.clone;try{if(navigator.clipboard)await navigator.clipboard.writeText(t);else{const x=document.createElement(\'textarea\');x.value=t;document.body.appendChild(x);x.select();document.execCommand(\'copy\');x.remove();}b.textContent=\'Copied\';setTimeout(()=>b.textContent=\'Copy\',1200);}catch(e){b.textContent=\'Error\';}})(this)">Copy</button>' +
-          '</span>' +
-        '</div>';
+    const ownerSlug = state.username || Auth.session().account || '';
+    const cloneUrl = 'git clone ' + location.protocol + '//' + location.host + '/' + encodeURIComponent(ownerSlug) + '/' + encodeURIComponent(repo || '') + '.git';
+    detail.innerHTML =
+      group('Branches', branches) +
+      group('Tags', tags) +
+      group('Commits', commits) +
+      '<div class="dash-repo-detail-group">' +
+        '<span class="dash-repo-detail-label">Clone</span>' +
+        '<span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+          '<code class="dash-repo-code" style="margin:0;">' + esc(cloneUrl) + '</code>' +
+          '<button type="button" class="dash-copy-btn" style="position:static;" data-clone="' + esc(cloneUrl) + '">Copy</button>' +
+        '</span>' +
+      '</div>';
+    const cb = detail.querySelector('[data-clone]');
+    if (cb) cb.addEventListener('click', () => copyText(cb, cb.getAttribute('data-clone')));
     detail.hidden = false;
   }
 
-  async function loadRepoDetail(repo, detail) {
-    if (!state.selected || !detail) return;
+  async function loadRepoDetail(repo, detail, nodeId) {
+    if (!nodeId || !detail) return;
     const owner = Auth.session().account;
     detail.innerHTML = '<span class="dash-chip">Loading…</span>';
     try {
       const base = '/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo);
-      const [b, t] = await Promise.all([
-        getJson(base + '/branches').catch(() => null),
-        getJson(base + '/tags').catch(() => null),
-      ]);
+      const r = await getJson(base + '/refs');
+      if (state.selected !== nodeId || !detail.isConnected) return; // user moved on
       renderRefs(
         detail,
-        Array.isArray(b && b.branches) ? b.branches : [],
-        Array.isArray(t && t.tags) ? t.tags : [],
-        Array.isArray(b && b.commits) ? b.commits : [],
+        Array.isArray(r && r.branches) ? r.branches : [],
+        Array.isArray(r && r.tags) ? r.tags : [],
+        Array.isArray(r && r.commits) ? r.commits : [],
         repo,
       );
-      setStatus('');
     } catch (e) {
+      if (state.selected !== nodeId || !detail.isConnected) return;
       detail.innerHTML = '<span class="dash-chip">unavailable</span>';
-      setStatus(e.message, true);
     }
   }
 
@@ -261,6 +278,7 @@
     el.repolistEmpty.hidden = true;
     try {
       const data = await getJson('/api/nodes/' + encodeURIComponent(id) + '/repos');
+      if (state.selected !== id) return; // a newer selection superseded this one
       renderRepos(data && data.repositories);
       setStatus('');
     } catch (e) {
@@ -351,6 +369,7 @@
     }
   }
 
+  let pairPoll = null;
   async function pairNode(ev) {
     if (ev) ev.preventDefault();
     const code = (el.pairCode && el.pairCode.value || '').trim().toUpperCase();
@@ -373,14 +392,23 @@
       if (el.pairCode) el.pairCode.value = '';
       if (el.pairNodeId) el.pairNodeId.value = '';
       await loadNodes();
-      // Poll briefly until the newly paired node comes online.
+      // Poll briefly (node list only) until the newly paired node is online.
+      clearInterval(pairPoll);
       let tries = 0;
-      const poll = setInterval(async () => {
+      pairPoll = setInterval(async () => {
         tries++;
-        await loadNodes();
-        const n = state.nodes.find((x) => x.id === state.selected);
-        if ((n && n.online === true) || tries >= 10) clearInterval(poll);
-      }, 2000);
+        try {
+          const data = await getJson('/api/nodes');
+          state.nodes = Array.isArray(data && data.nodes) ? data.nodes : state.nodes;
+          renderNodes();
+          const paired = state.nodes.find((x) => x.id === (body && body.node_id));
+          if (paired && paired.online === true) {
+            clearInterval(pairPoll);
+            await selectNode(paired.id);
+          }
+        } catch { /* keep trying */ }
+        if (tries >= 10) clearInterval(pairPoll);
+      }, 3000);
       closePairModal();
     } catch (e) {
       if (el.pairStatus) { el.pairStatus.textContent = e.message; el.pairStatus.classList.add('is-error'); }
