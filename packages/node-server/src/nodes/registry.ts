@@ -95,7 +95,12 @@ export class NodeRegistry {
   // ── node record ────────────────────────────────────────────────────
 
   async getNode(id: string): Promise<Record<string, string> | null> {
-    const rec = await this.redis.hgetall(`node:${id}`);
+    let rec: Record<string, string> = {};
+    try {
+      rec = await this.redis.hgetall(`node:${id}`);
+    } catch {
+      rec = {};
+    }
     return Object.keys(rec).length > 0 ? rec : null;
   }
 
@@ -129,12 +134,24 @@ export class NodeRegistry {
   }
 
   async isOnline(id: string): Promise<boolean> {
-    // Fast path: persistent liveness key.
-    if (await this.redis.exists(`online:${id}`)) return true;
+    // Fast path: persistent liveness key. Strata reads can time out when
+    // Codeberg is slow; treat a read failure as "unknown" and fall through.
+    let exists = false;
+    try {
+      exists = await this.redis.exists(`online:${id}`);
+    } catch {
+      exists = false;
+    }
+    if (exists) return true;
     // Fallback: the node is online if it recently reported telemetry. This
     // covers the case where the online:<id> write was rejected upstream but
     // the node is actively polling.
-    const info = (await this.redis.hgetall(`ninfo:${id}`).catch(() => ({} as Record<string, string>))) as Record<string, string>;
+    let info: Record<string, string> = {};
+    try {
+      info = (await this.redis.hgetall(`ninfo:${id}`).catch(() => ({} as Record<string, string>))) as Record<string, string>;
+    } catch {
+      info = {};
+    }
     const lastSeen = info["lastSeen"];
     if (typeof lastSeen === "string" && lastSeen !== "") {
       const age = Date.now() - Date.parse(lastSeen);
@@ -150,21 +167,35 @@ export class NodeRegistry {
   /**
    * Unpair a node: wipe every record associated with it so it disappears
    * from the dashboard and can be re-paired later. Returns the owner
-   * account (or null when the node did not exist).
+   * account (or null when the node did not exist). Every individual delete
+   * is best-effort: an upstream rejection on one key must not fail the whole
+   * unpair.
    */
   async unpairNode(id: string): Promise<string | null> {
-    const rec = await this.getNode(id);
+    let rec: Record<string, string> | null;
+    try {
+      rec = await this.getNode(id);
+    } catch {
+      return null;
+    }
     if (!rec) return null;
     const account = rec["account"] ?? "";
-    const pendingCode = await this.pendingCodeFor(id);
+    let pendingCode: string | null;
+    try {
+      pendingCode = await this.pendingCodeFor(id);
+    } catch {
+      pendingCode = null;
+    }
+    const del = (k: string) => this.redis.del(k).catch(() => 0);
+    const srem = (k: string, m: string) => this.redis.srem(k, m).catch(() => 0);
     await Promise.all([
-      this.redis.del(`node:${id}`),
-      this.redis.del(`online:${id}`),
-      this.redis.del(`ninfo:${id}`),
-      this.redis.del(`pairbyId:${id}`),
-      this.redis.del(`inbox:${id}`),
-      pendingCode ? this.redis.del(`paircode:${pendingCode}`) : Promise.resolve(0),
-      account ? this.redis.srem(`acct:${account}`, id) : Promise.resolve(0),
+      del(`node:${id}`),
+      del(`online:${id}`),
+      del(`ninfo:${id}`),
+      del(`pairbyId:${id}`),
+      del(`inbox:${id}`),
+      pendingCode ? del(`paircode:${pendingCode}`) : Promise.resolve(0),
+      account ? srem(`acct:${account}`, id) : Promise.resolve(0),
     ]);
     return account;
   }
@@ -195,12 +226,32 @@ export class NodeRegistry {
     await this.redis.hmsetEx(`ninfo:${id}`, this.onlineTtlSec * 24, { repositories: JSON.stringify(repos) });
   }
 
+  /** Best-effort read of the cached repo index; never throws. */
+  async getCachedRepos(id: string): Promise<RepoEntry[]> {
+    let info: Record<string, string> = {};
+    try {
+      info = (await this.redis.hgetall(`ninfo:${id}`).catch(() => ({} as Record<string, string>))) as Record<string, string>;
+    } catch {
+      info = {};
+    }
+    const cached = info["repositories"];
+    if (typeof cached === "string" && cached !== "") {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed as RepoEntry[];
+      } catch {
+        /* ignore */
+      }
+    }
+    return [];
+  }
+
   // ── dashboard views ────────────────────────────────────────────────
 
   async nodeView(id: string): Promise<Record<string, unknown>> {
     const [rec0, info, online] = await Promise.all([
       this.getNode(id),
-      this.redis.hgetall(`ninfo:${id}`),
+      this.redis.hgetall(`ninfo:${id}`).catch(() => ({} as Record<string, string>)),
       this.isOnline(id),
     ]);
     const rec = rec0 ?? {};

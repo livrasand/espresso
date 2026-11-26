@@ -243,21 +243,27 @@
     if (!nodeId || !detail) return;
     const owner = Auth.session().account;
     detail.innerHTML = '<span class="dash-chip">Loading…</span>';
-    try {
-      const base = '/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo);
-      const r = await getJson(base + '/refs');
-      if (state.selected !== nodeId || !detail.isConnected) return; // user moved on
-      renderRefs(
-        detail,
-        Array.isArray(r && r.branches) ? r.branches : [],
-        Array.isArray(r && r.tags) ? r.tags : [],
-        Array.isArray(r && r.commits) ? r.commits : [],
-        repo,
-      );
-    } catch (e) {
-      if (state.selected !== nodeId || !detail.isConnected) return;
-      detail.innerHTML = '<span class="dash-chip">unavailable</span>';
+    let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const base = '/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo);
+        const r = await getJson(base + '/refs');
+        if (state.selected !== nodeId || !detail.isConnected) return; // user moved on
+        renderRefs(
+          detail,
+          Array.isArray(r && r.branches) ? r.branches : [],
+          Array.isArray(r && r.tags) ? r.tags : [],
+          Array.isArray(r && r.commits) ? r.commits : [],
+          repo,
+        );
+        return;
+      } catch (e) {
+        lastErr = e;
+        if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
     }
+    if (state.selected !== nodeId || !detail.isConnected) return;
+    detail.innerHTML = '<span class="dash-chip">unavailable</span>';
   }
 
   async function selectNode(id) {

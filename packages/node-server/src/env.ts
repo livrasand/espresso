@@ -50,15 +50,15 @@ export function config(): Config {
     strata: {
       url: env("STRATA_URL"),
       token: env("STRATA_TOKEN"),
-      // Cap each Strata round trip so a hung upstream (Strata → Codeberg)
-      // fails fast with a 500 instead of stalling until the serverless
-      // maxDuration kills the lambda.
-      timeoutMs: Math.max(1000, Number(env("STRATA_TIMEOUT_MS") ?? "20000") || 20000),
+      // Cap each Strata round trip at the Vercel serverless limit (60 s)
+      // so a hung upstream (Strata → Codeberg) fails fast instead of being
+      // killed by maxDuration.
+      timeoutMs: Math.max(1000, Number(env("STRATA_TIMEOUT_MS") ?? "60000") || 60000),
     },
     secret: loadSecret(),
     apiKey: env("ESPRESSO_API_KEY") ?? "",
     nodeOnlineTtlSec: Number(env("NODE_ONLINE_TTL") ?? "90") || 90,
-    rpcTimeoutMs: Math.max(1000, Number(env("RPC_TIMEOUT_MS") ?? "15000") || 15000),
+    rpcTimeoutMs: Math.max(1000, Number(env("RPC_TIMEOUT_MS") ?? "60000") || 60000),
     logFormat: env("LOG_FORMAT") === "json" ? "json" : "text",
     commitHash: env("COMMIT_HASH") ?? "dev",
     sourceRepo: "https://github.com/livrasand/Espresso",

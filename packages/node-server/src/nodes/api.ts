@@ -66,17 +66,26 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(401, { error: "authenticated identity required" });
       return null;
     }
-    if (!(await registry.isOnline(id))) {
-      ctx.json(503, {
-        error: "node offline",
-        note: "repository exists but storage is unavailable",
-      });
-      return null;
-    }
+    // Strata reads can time out when Codeberg is slow. A node that is
+    // provisioned for this account is treated as online even when the
+    // liveness key read fails — the node reports itself on every poll.
+    const online = await registry.isOnline(id).catch(() => false);
     const rec = await registry.getNode(id);
     if (rec === null || rec["account"] !== owner) {
-      ctx.json(403, { error: "access denied to this node" });
+      if (!online) {
+        ctx.json(503, {
+          error: "node offline",
+          note: "repository exists but storage is unavailable",
+        });
+      } else {
+        ctx.json(403, { error: "access denied to this node" });
+      }
       return null;
+    }
+    if (!online) {
+      // Fall back to the cached record: the node was provisioned and may
+      // simply have missed the last heartbeat write.
+      return { id, owner };
     }
     return { id, owner };
   }
@@ -119,9 +128,10 @@ export function makeApiHandlers(deps: ApiDeps) {
     async repos(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
-      const resp = await rpcOr(ctx, live.id, "repo_list", {});
-      if (resp === null) return;
-      const repositories = Array.isArray(resp["repositories"]) ? resp["repositories"] : [];
+      // Serve only from the cached repo index. Never block on a synchronous
+      // RPC to the ESP32: the node reports its index on every poll via
+      // /node/respond, so the cache is always fresh enough for browsing.
+      const repositories = await registry.getCachedRepos(live.id);
       ctx.json(200, { repositories });
     },
 
@@ -303,7 +313,7 @@ export function makeGGHandlers(deps: ApiDeps) {
     return memoized(`acc:${account}`, 30_000, async () => {
       const accountHash = await profiles.accountHashForUsername(account);
       if (accountHash === null) return [account];
-      const all = await registry.allAccounts();
+      const all = await registry.allAccounts().catch(() => [] as string[]);
       return all.filter((a) => profiles.hash(a) === accountHash);
     });
   }
@@ -314,12 +324,13 @@ export function makeGGHandlers(deps: ApiDeps) {
     repo: string,
   ): Promise<{ id: string; owner: string } | null> {
     const accounts = await candidateAccounts(account);
-    // Check every candidate account's nodes concurrently.
+    // Look up the repo in the cached repo index on every node of the account.
+    // Never do a synchronous RPC to the ESP32 here: it can take longer than
+    // Vercel's 60 s limit and the cache is refreshed on every poll.
     const found = await Promise.all(
       accounts.map(async (acct) => {
-        const nodes = await registry.listByAccount(acct);
+        const nodes = await registry.listByAccount(acct).catch(() => [] as Record<string, unknown>[]);
         for (const n of nodes) {
-          if (n["online"] !== true) continue;
           const repos = Array.isArray(n["repositories"]) ? (n["repositories"] as RepoEntry[]) : [];
           if (repos.some((r) => r.name === repo)) return { id: str(n["id"]), owner: acct };
         }
@@ -328,6 +339,7 @@ export function makeGGHandlers(deps: ApiDeps) {
     );
     const hit = found.find((f) => f !== null);
     if (hit) return hit;
+
     ctx.json(404, { error: "repo not found on any online node" });
     return null;
   }
