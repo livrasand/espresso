@@ -54,18 +54,52 @@ Whether you're experimenting with your first Git repository or exploring a diffe
 
 *Requires a device with the Espresso firmware flashed (see `firmware/`).*
 
-1. **Flash the firmware** (PlatformIO):
+1. **Install the PlatformIO CLI** (skip if you already have `pio`):
+
+   - **Windows / macOS / Linux (recommended, requires Python 3.7+):**
+     ```bash
+     pip install platformio
+     ```
+     On macOS you can also use Homebrew:
+     ```bash
+     brew install platformio
+     ```
+   - **Windows:** if `pio` is not found after installing, add Python's
+     `Scripts` folder to your `PATH` (e.g. `%APPDATA%\\Python\\Python3x\\Scripts`).
+   - **Linux:** if you get a permission error, install into your user site:
+     ```bash
+     pip install --user platformio
+     ```
+     and make sure `~/.local/bin` is on your `PATH`.
+   - Alternatively, install the **PlatformIO IDE extension for VS Code**, which
+     bundles the CLI and lets you flash from the editor.
+
+   Verify the installation:
+   ```bash
+   pio --version
+   ```
+
+2. **Flash the firmware** (PlatformIO):
 
    ```bash
    cd firmware && pio run -t upload
    ```
 
-2. **First run — captive portal.** The node opens a WiFi access point named
+   > **Troubleshooting uploads.** If `pio run -t upload` fails with serial errors
+   > (`Invalid head of packet`, `No more data to read from the serial port`, …),
+   > erase the flash and retry:
+   > ```bash
+   > cd firmware && pio run -t erase && pio run -t upload
+   > ```
+   > On noisy/long USB cables you can also make uploads more reliable by adding
+   > `upload_speed = 115200` to `firmware/platformio.ini` (slower but stabler).
+
+3. **First run — captive portal.** The node opens a WiFi access point named
    `Espresso-<nodeId>` (no password). Connect to it from your phone or laptop —
    the provisioning portal opens automatically (otherwise browse to
    `http://192.168.4.1`).
 
-3. **Fill in the portal** and save:
+4. **Fill in the portal** and save:
 
    | Field  | Value |
    |--------|-------|
@@ -76,10 +110,14 @@ Whether you're experimenting with your first Git repository or exploring a diffe
 
    The settings are stored in NVS — no re-flashing is needed to change them.
 
-4. **Pair the node.** After saving, the portal (and the serial log, 115200 baud)
+5. **Pair the node.** After saving, the portal (and the serial log, 115200 baud)
    shows a **pair code**. Open <https://espresso.livrasand.com/dashboard>,
    click **Pair node**, enter the code, and the node will appear in your node
    list.
+
+   > **Note:** It's normal for the node not to connect on the first try
+   > sometimes. If it doesn't show up, refresh the page and try again —
+   > that usually resolves it.
 
 Nodes connect **outward** to the control plane — no inbound ports to open on
 your router. **HTTPS is used when the provisioned port is 443**; any other port

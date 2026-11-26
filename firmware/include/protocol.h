@@ -371,7 +371,7 @@ public:
             String sha = "";
             for (size_t i = 0; i < n && i < 40; i++) {
                 char c = (char)buf[i];
-                if (c == '\\n' || c == '\\r' || c == ' ') break;
+                if (c == '\n' || c == '\r' || c == ' ') break;
                 sha += c;
             }
             if (sha.length() < 7) continue;

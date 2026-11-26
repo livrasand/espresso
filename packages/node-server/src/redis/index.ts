@@ -40,6 +40,13 @@ export class Redis {
   hset(key: string, field: string, value: string): Promise<number> {
     return this.exec(["HSET", key, field, value]).then((r) => (typeof r === "number" ? r : 0));
   }
+  /** Sets multiple hash fields in a single read-modify-write round trip. */
+  hmset(key: string, fields: Record<string, string>): Promise<number> {
+    const pairs: (string | number)[] = [];
+    for (const [f, v] of Object.entries(fields)) pairs.push(f, v);
+    if (pairs.length === 0) return Promise.resolve(0);
+    return this.exec(["HMSET", key, ...pairs]).then((r) => (typeof r === "number" ? r : 0));
+  }
   hget(key: string, field: string): Promise<string | null> {
     return this.exec(["HGET", key, field]) as Promise<string | null>;
   }

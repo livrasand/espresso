@@ -68,6 +68,17 @@ export class MemoryRedis implements RedisLike {
         this.kv.set(key, h);
         return (args.length - 1) / 2;
       }
+      case "HMSET": {
+        let h = this.alive(key);
+        if (!(h instanceof Map)) h = new Map();
+        let n = 0;
+        for (let i = 1; i + 1 < args.length; i += 2) {
+          if (!h.has(args[i]!)) n++;
+          h.set(args[i]!, args[i + 1]!);
+        }
+        this.kv.set(key, h);
+        return n || (args.length - 1) / 2;
+      }
       case "HGET": {
         const h = this.alive(key);
         return h instanceof Map ? (h.get(args[1] ?? "") ?? null) : null;

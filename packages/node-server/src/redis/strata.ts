@@ -42,7 +42,17 @@ export class StrataBackend implements RedisLike {
    * 60 s on POST /api/accounts.
    */
   private async http(url: string, init: RequestInit = {}): Promise<Response> {
-    return fetch(url, { ...init, signal: AbortSignal.timeout(this.timeoutMs) });
+    // Disable keep-alive: Vercel's Node serverless runtime waits for the event
+    // loop to drain before finalising an invocation, and pooled sockets would
+    // otherwise keep the lambda alive until maxDuration (observed as 60s
+    // timeouts on /node/pair and /api/nodes/pair).
+    const headers = { ...(init.headers as Record<string, string> | undefined), Connection: "close" };
+    return fetch(url, {
+      ...init,
+      headers,
+      keepalive: false,
+      signal: AbortSignal.timeout(this.timeoutMs),
+    } as RequestInit);
   }
 
   /**
@@ -208,6 +218,21 @@ export class StrataBackend implements RedisLike {
         const sec = Number(args[0]);
         await this.write(k, { ...pkg, e: Date.now() + sec * 1000 });
         return 1;
+      }
+
+      case "HMSET": {
+        const k = String(key);
+        const existing = await this.read(k);
+        const obj = (existing && existing.t === "h" ? existing.v : {}) as Record<string, string>;
+        let added = 0;
+        for (let i = 0; i + 1 < args.length; i += 2) {
+          const field = String(args[i]);
+          const value = String(args[i + 1] ?? "");
+          if (!(field in obj)) added++;
+          obj[field] = value;
+        }
+        await this.write(k, this.pkg("h", existing, obj));
+        return added || Object.keys(obj).length;
       }
 
       case "HSET": {

@@ -66,25 +66,28 @@ export class NodeRegistry {
     const c = normalizeCode(code);
     const raw = await this.redis.get(`paircode:${c}`);
     if (raw === null) return null;
-    await this.redis.del(`paircode:${c}`);
     const pending = JSON.parse(raw) as PendingPairing;
-    return this.provisionNode(pending, account);
+    // Delete the pending code in parallel with provisioning to save a round trip.
+    const [id] = await Promise.all([
+      this.provisionNode(pending, account),
+      this.redis.del(`paircode:${c}`),
+    ]);
+    return id;
   }
 
   async provisionNode(pending: PendingPairing, account: string): Promise<string> {
     const { id, name, pubkey } = pending;
     const token = newToken();
-    await this.redis.hset(`node:${id}`, "token", token);
-    await this.redis.hset(`node:${id}`, "pubkey", pubkey);
-    await this.redis.hset(`node:${id}`, "name", name);
-    await this.redis.hset(`node:${id}`, "account", account);
-    await this.redis.hset(`node:${id}`, "createdAt", new Date().toISOString());
-    // Pairing is complete: drop the reverse index so the unpaired poll path
-    // closes.
-    await this.redis.del(`pairbyId:${id}`);
-    await this.redis.sadd(`acct:${account}`, id);
-    // pair_ok is delivered through the poll inbox.
-    await this.pushCommand(id, { action: "pair_ok", node_id: id, token });
+    const createdAt = new Date().toISOString();
+    // These writes are independent once the token exists; run them in parallel
+    // to cut Strata round-trips (important on serverless where each command is
+    // an HTTP call to the git-backed store).
+    await Promise.all([
+      this.redis.hmset(`node:${id}`, { token, pubkey, name, account, createdAt }),
+      this.redis.del(`pairbyId:${id}`),
+      this.redis.sadd(`acct:${account}`, id),
+      this.pushCommand(id, { action: "pair_ok", node_id: id, token }),
+    ]);
     return id;
   }
 
@@ -106,8 +109,10 @@ export class NodeRegistry {
   /** Marks liveness after a hello/poll; returns true when transitioning online. */
   async touchOnline(id: string, name?: string, fw?: string): Promise<boolean> {
     const was = await this.redis.exists(`online:${id}`);
-    if (name !== undefined && name !== "") await this.redis.hset(`node:${id}`, "name", name);
-    if (fw !== undefined && fw !== "") await this.redis.hset(`node:${id}`, "firmware", fw);
+    const fields: Record<string, string> = {};
+    if (name !== undefined && name !== "") fields["name"] = name;
+    if (fw !== undefined && fw !== "") fields["firmware"] = fw;
+    if (Object.keys(fields).length > 0) await this.redis.hmset(`node:${id}`, fields);
     await this.redis.set(`online:${id}`, "1", "EX", this.onlineTtlSec);
     return !was;
   }
@@ -133,12 +138,14 @@ export class NodeRegistry {
       wifi_rssi?: number;
     },
   ): Promise<void> {
-    if (telemetry.uptime_s !== undefined) await this.redis.hset(`ninfo:${id}`, "uptime_s", String(Math.floor(telemetry.uptime_s)));
-    if (telemetry.storage_free !== undefined) await this.redis.hset(`ninfo:${id}`, "storage_free", String(Math.floor(telemetry.storage_free)));
-    if (telemetry.storage_total !== undefined) await this.redis.hset(`ninfo:${id}`, "storage_total", String(Math.floor(telemetry.storage_total)));
-    if (telemetry.ram_total !== undefined) await this.redis.hset(`ninfo:${id}`, "ram_total", String(Math.floor(telemetry.ram_total)));
-    if (telemetry.heap_free !== undefined) await this.redis.hset(`ninfo:${id}`, "heap_free", String(Math.floor(telemetry.heap_free)));
-    if (telemetry.wifi_rssi !== undefined) await this.redis.hset(`ninfo:${id}`, "wifi_rssi", String(Math.floor(telemetry.wifi_rssi)));
+    const fields: Record<string, string> = {};
+    if (telemetry.uptime_s !== undefined) fields["uptime_s"] = String(Math.floor(telemetry.uptime_s));
+    if (telemetry.storage_free !== undefined) fields["storage_free"] = String(Math.floor(telemetry.storage_free));
+    if (telemetry.storage_total !== undefined) fields["storage_total"] = String(Math.floor(telemetry.storage_total));
+    if (telemetry.ram_total !== undefined) fields["ram_total"] = String(Math.floor(telemetry.ram_total));
+    if (telemetry.heap_free !== undefined) fields["heap_free"] = String(Math.floor(telemetry.heap_free));
+    if (telemetry.wifi_rssi !== undefined) fields["wifi_rssi"] = String(Math.floor(telemetry.wifi_rssi));
+    if (Object.keys(fields).length > 0) await this.redis.hmset(`ninfo:${id}`, fields);
     void this.redis.expire(`ninfo:${id}`, this.onlineTtlSec * 24);
   }
 
