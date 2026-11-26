@@ -257,6 +257,22 @@ export function makeApiHandlers(deps: ApiDeps) {
       if (resp === null) return;
       ctx.json(200, resp);
     },
+
+    /** DELETE /api/nodes/:id — unpair and wipe the node from the control plane. */
+    async deleteNode(ctx: HttpCtx, idParam: string): Promise<void> {
+      const id = idParam.toUpperCase();
+      let owner = ctx.identity;
+      if (owner === "") owner = ctx.header("x-espresso-key") ?? "";
+      if (owner === "") return ctx.json(401, { error: "authenticated identity required" });
+      const rec = await registry.getNode(id);
+      if (rec === null || rec["account"] !== owner) {
+        return ctx.json(403, { error: "access denied to this node" });
+      }
+      const account = await registry.unpairNode(id);
+      if (account === null) return ctx.json(404, { error: "node not found" });
+      log(`[node] UNPAIRED: ${id} by ${owner}`);
+      ctx.json(200, { ok: true, node_id: id });
+    },
   };
 }
 

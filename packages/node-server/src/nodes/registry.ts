@@ -12,6 +12,7 @@
 
 import crypto from "node:crypto";
 import type { Redis } from "../redis/index.js";
+import { logError } from "../log.js";
 
 const PAIRING_TTL_SEC = 10 * 60;
 const RESPONSE_TTL_SEC = 120;
@@ -106,30 +107,66 @@ export class NodeRegistry {
     return true;
   }
 
-  /** Marks liveness after a hello/poll; returns true when transitioning online. */
+  /** Marks liveness after a hello/poll; returns true when transitioning online.
+   * Strata writes (backed by Codeberg git pushes) can be rejected upstream
+   * (e.g. 403 PushRejected). Those failures must not kill the poll: a node
+   * that just authenticated with a valid token is online regardless of
+   * whether the liveness key could be persisted. */
   async touchOnline(id: string, name?: string, fw?: string): Promise<boolean> {
-    // Only write the node record when name/firmware actually changed: the
-    // record (served from cache) almost never differs between polls, so the
-    // steady-state heartbeat is just EXISTS + SET.
-    const wasOnlineP = this.redis.exists(`online:${id}`);
+    const wasOnline = await this.redis.exists(`online:${id}`);
     const rec = await this.getNode(id);
     const fields: Record<string, string> = {};
     if (name !== undefined && name !== "" && rec?.["name"] !== name) fields["name"] = name;
     if (fw !== undefined && fw !== "" && rec?.["firmware"] !== fw) fields["firmware"] = fw;
-    const [was] = await Promise.all([
-      wasOnlineP,
-      Object.keys(fields).length > 0 ? this.redis.hmset(`node:${id}`, fields) : Promise.resolve(0),
-      this.redis.set(`online:${id}`, "1", "EX", this.onlineTtlSec),
-    ]);
-    return !was;
+    if (Object.keys(fields).length > 0) {
+      await this.redis.hmset(`node:${id}`, fields).catch((e) => logError(`strata node:${id} write failed: ${e.message}`));
+    }
+    // Best-effort liveness write: don't let an upstream rejection fail the poll.
+    await this.redis.set(`online:${id}`, "1", "EX", this.onlineTtlSec).catch((e) =>
+      logError(`strata online:${id} write failed: ${e.message}`),
+    );
+    return !wasOnline;
   }
 
   async isOnline(id: string): Promise<boolean> {
-    return this.redis.exists(`online:${id}`);
+    // Fast path: persistent liveness key.
+    if (await this.redis.exists(`online:${id}`)) return true;
+    // Fallback: the node is online if it recently reported telemetry. This
+    // covers the case where the online:<id> write was rejected upstream but
+    // the node is actively polling.
+    const info = (await this.redis.hgetall(`ninfo:${id}`).catch(() => ({} as Record<string, string>))) as Record<string, string>;
+    const lastSeen = info["lastSeen"];
+    if (typeof lastSeen === "string" && lastSeen !== "") {
+      const age = Date.now() - Date.parse(lastSeen);
+      if (age >= 0 && age < this.onlineTtlSec * 1000) return true;
+    }
+    return false;
   }
 
   async setOffline(id: string): Promise<void> {
     await this.redis.del(`online:${id}`);
+  }
+
+  /**
+   * Unpair a node: wipe every record associated with it so it disappears
+   * from the dashboard and can be re-paired later. Returns the owner
+   * account (or null when the node did not exist).
+   */
+  async unpairNode(id: string): Promise<string | null> {
+    const rec = await this.getNode(id);
+    if (!rec) return null;
+    const account = rec["account"] ?? "";
+    const pendingCode = await this.pendingCodeFor(id);
+    await Promise.all([
+      this.redis.del(`node:${id}`),
+      this.redis.del(`online:${id}`),
+      this.redis.del(`ninfo:${id}`),
+      this.redis.del(`pairbyId:${id}`),
+      this.redis.del(`inbox:${id}`),
+      pendingCode ? this.redis.del(`paircode:${pendingCode}`) : Promise.resolve(0),
+      account ? this.redis.srem(`acct:${account}`, id) : Promise.resolve(0),
+    ]);
+    return account;
   }
 
   // ── telemetry / repo index (ninfo:<id>) ────────────────────────────
@@ -149,7 +186,9 @@ export class NodeRegistry {
     for (const [k, v] of Object.entries(telemetry)) {
       if (v !== undefined) fields[k] = String(Math.floor(v));
     }
-    await this.redis.hmsetEx(`ninfo:${id}`, this.onlineTtlSec * 24, fields);
+    await this.redis.hmsetEx(`ninfo:${id}`, this.onlineTtlSec * 24, fields).catch((e) =>
+      logError(`strata ninfo:${id} write failed: ${e.message}`),
+    );
   }
 
   async updateRepos(id: string, repos: RepoEntry[]): Promise<void> {

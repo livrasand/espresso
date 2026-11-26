@@ -10,7 +10,7 @@
 // production); any other port speaks plain HTTP for LAN/dev.
 
 #define FIRMWARE_VERSION   "2.0.0"
-#define POLL_INTERVAL_MS   1000   // poll cadence: telemetry + inbox drain
+#define POLL_INTERVAL_MS   10000  // poll cadence: telemetry + inbox drain
 #define PAIR_RETRY_MS      15000  // re-post pair_request while unpaired (server TTL 10m)
 #define WIFI_TIMEOUT_MS    20000
 #define HTTP_TIMEOUT_MS    15000  // per-request read budget (must stay under the server's RPC_TIMEOUT_MS)

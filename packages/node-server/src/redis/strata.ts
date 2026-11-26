@@ -70,20 +70,16 @@ export class StrataBackend implements RedisLike {
   }
 
   /**
-   * GET with one retry: Strata revalidates its state against its git host on
-   * every read, so transient upstream hiccups are common. Writes are NOT
-   * retried — an ambiguous failure (timeout after the commit landed) must not
-   * duplicate a journal op; the caller surfaces the error instead.
+   * Single GET attempt. Writes are NOT retried — an ambiguous failure
+   * (timeout after the commit landed) must not duplicate a journal op; the
+   * caller surfaces the error instead.
    */
   private async httpGet(url: string): Promise<Response> {
-    const init = { headers: this.headers() };
-    try {
-      return await this.http(url, init);
-    } catch (e) {
-      const name = String((e as { name?: string })?.name);
-      if (name !== "TimeoutError" && name !== "AbortError") throw e;
-      return this.http(url, init);
-    }
+    // A single attempt: retrying a timed-out Strata read stacks a second
+    // (possibly 20s) round trip on top of the first and is what pushed
+    // /node/poll past Vercel's 60s maxDuration. Surface the timeout to the
+    // caller instead of amplifying it.
+    return this.http(url, { headers: this.headers() });
   }
 
   private headers(json = false): Record<string, string> {
@@ -153,7 +149,10 @@ export class StrataBackend implements RedisLike {
 
   private invalidate(k: string): void {
     this.cache.delete(k);
-    this.keysCache = null;
+    // Only node records change the key set that KEYS("node:*") reports;
+    // liveness/telemetry/inbox writes do not, so leave the keys cache intact
+    // for those to avoid forcing an expensive journal scan on every poll.
+    if (k.startsWith("node:")) this.keysCache = null;
   }
 
   /** Writes an envelope, trimming the expiry if it already elapsed. */

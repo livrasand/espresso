@@ -156,7 +156,7 @@
               '<span class="dash-node-name">' + esc(n.name || n.id) + '</span>' +
             '</span>' +
             '<span class="dash-node-meta">' + esc(meta) + '</span>' +
-            '<span class="dash-node-id">' + id + ' <button type="button" class="dash-copy-btn dash-copy-sm" data-copy="' + id + '" title="Copy node ID">Copy</button></span>' +
+            '<span class="dash-node-id">' + id + ' <button type="button" class="dash-copy-btn dash-copy-sm" data-copy="' + id + '" title="Copy node ID">Copy</button> <button type="button" class="dash-delete-node" data-delete="' + id + '" title="Delete node">Delete</button></span>' +
           '</button>' +
         '</li>'
       );
@@ -170,6 +170,12 @@
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         copyText(btn, btn.getAttribute('data-copy'));
+      });
+    });
+    el.nodelist.querySelectorAll('[data-delete]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        openDeleteNodeModal(btn.getAttribute('data-delete'));
       });
     });
   }
@@ -337,6 +343,69 @@
         await selectNode(state.selected);
       } catch (e) {
         clearInterval(interval);
+        setStatus(e.message, true);
+        submit.disabled = false;
+        submit.textContent = 'Delete';
+      }
+    });
+  }
+
+  async function openDeleteNodeModal(nodeId) {
+    const node = state.nodes.find((n) => n.id === nodeId);
+    const label = esc(node ? (node.name || node.id) : nodeId);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
+    overlay.innerHTML =
+      '<div style="background:#1a1a1a;border:1px solid #f76f53;padding:1.25rem;max-width:420px;width:90%;font-family:ui-monospace,Menlo,monospace;color:#eee;">' +
+        '<h3 style="margin:0 0 .75rem;color:#f76f53;">Delete node</h3>' +
+        '<p style="margin:.25rem 0;">This will unpair <strong>' + label + '</strong> and wipe its records. Type the node ID <strong>' + esc(nodeId) + '</strong> to confirm.</p>' +
+        '<input id="del-node-id" style="width:100%;box-sizing:border-box;margin:.25rem 0;padding:.3rem;background:#0d0d0d;color:#eee;border:1px solid #444;" />' +
+        '<div style="display:flex;gap:.5rem;margin-top:.75rem;justify-content:flex-end;">' +
+          '<button type="button" id="del-node-cancel" style="background:#333;color:#eee;border:1px solid #555;padding:.3rem .7rem;cursor:pointer;">Cancel</button>' +
+          '<button type="button" id="del-node-submit" style="background:#f76f53;color:#1f1f1f;border:1px solid #f76f53;padding:.3rem .7rem;cursor:pointer;font-weight:600;">Delete</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    const idInput = overlay.querySelector('#del-node-id');
+    const cancel = overlay.querySelector('#del-node-cancel');
+    const submit = overlay.querySelector('#del-node-submit');
+    cancel.addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.remove(); });
+    submit.addEventListener('click', async () => {
+      if (idInput.value.trim() !== nodeId) { setStatus('Node ID does not match.', true); return; }
+      submit.disabled = true;
+      submit.textContent = 'Deleting…';
+      try {
+        const res = await fetch(API + '/api/nodes/' + encodeURIComponent(nodeId), {
+          method: 'DELETE',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, Auth.authHeaders()),
+        });
+        let body = null;
+        try { body = await res.json(); } catch { /* non-JSON */ }
+        if (!res.ok) throw new Error((body && body.error) || 'delete failed (' + res.status + ')');
+        overlay.remove();
+        setStatus('Node ' + label + ' deleted.');
+        // If we removed the selected node, fall back to another node or clear.
+        if (state.selected === nodeId) {
+          const remaining = state.nodes.filter((n) => n.id !== nodeId);
+          state.nodes = remaining;
+          renderNodes();
+          if (remaining.length === 0) {
+            state.selected = null;
+            el.title.textContent = 'Repositories';
+            el.subtitle.textContent = '';
+            el.repolist.innerHTML = '';
+            el.repolistEmpty.hidden = false;
+            el.repolistEmpty.textContent = 'No nodes paired yet. Pair one from your device to get started.';
+            setStatus('');
+          } else {
+            const next = remaining.find((n) => n.online === true) || remaining[0];
+            await selectNode(next);
+          }
+        } else {
+          await loadNodes();
+        }
+      } catch (e) {
         setStatus(e.message, true);
         submit.disabled = false;
         submit.textContent = 'Delete';

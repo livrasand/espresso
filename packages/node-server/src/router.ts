@@ -215,6 +215,11 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
     return deps.profileH.getPublic(ctx, m![1]!);
   }
 
+  if (match(/^\/api\/nodes\/([^/]+)$/)) {
+    if (method !== "DELETE" || !requireApiKey(ctx, cfg)) return notFound(ctx, path);
+    if (!requireSession(ctx, cfg)) return;
+    return deps.apiH.deleteNode(ctx, m![1]!);
+  }
   if (match(/^\/api\/nodes\/([^/]+)\/repos$/)) {
     if (!requireApiKey(ctx, cfg)) return notFound(ctx, path);
     if (!requireSession(ctx, cfg)) return;

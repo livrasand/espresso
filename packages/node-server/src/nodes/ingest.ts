@@ -102,15 +102,29 @@ export function makeIngestHandlers(registry: NodeRegistry) {
         }
         commands = await registry.drainInbox(id);
       } else {
-        // Unprovisioned node: signature must match the pubkey of its pending
-        // pairing; without a pending pairing there is nothing to poll.
+        // Unprovisioned node (no bearer token). Two cases:
+        //   1. Already provisioned (node record exists): verify against the
+        //      stored pubkey and re-issue pair_ok so it can complete pairing
+        //      without the user re-entering the code.
+        //   2. Not yet provisioned: verify against the pending pairing code.
         commands = [];
-        const code = await registry.pendingCodeFor(id);
-        if (code !== null) {
-          const pending = await registry.pairingByCode(code);
-          const payload = signedPayload(id, ts, "poll");
-          if (pending && pending.pubkey === str(body.pubkey) && verifyNodeSignature(pending.pubkey, str(body.sig), payload)) {
+        const payload = signedPayload(id, ts, "poll");
+        const rec = await registry.getNode(id);
+        const pubkey = typeof rec?.["pubkey"] === "string" ? rec["pubkey"] : "";
+        const token = typeof rec?.["token"] === "string" ? rec["token"] : "";
+        if (pubkey !== "" && pubkey === str(body.pubkey) && verifyNodeSignature(pubkey, str(body.sig), payload)) {
+          commands = await registry.drainInbox(id);
+          if (token !== "" && commands.length === 0) {
+            await registry.pushCommand(id, { action: "pair_ok", node_id: id, token });
             commands = await registry.drainInbox(id);
+          }
+        } else {
+          const code = await registry.pendingCodeFor(id);
+          if (code !== null) {
+            const pending = await registry.pairingByCode(code);
+            if (pending && pending.pubkey === str(body.pubkey) && verifyNodeSignature(pending.pubkey, str(body.sig), payload)) {
+              commands = await registry.drainInbox(id);
+            }
           }
         }
       }

@@ -600,3 +600,5 @@
 
 .dash-node-id { display:block; font-size:0.7rem; color:#888; margin-top:2px; }
 .dash-copy-sm { font-size:0.65rem; padding:0 4px; margin-left:4px; }
+.dash-delete-node { font-size:0.65rem; padding:0 6px; margin-left:4px; background:#444; color:#eee;border:1px solid #666;border-radius:2px;cursor:pointer; }
+.dash-delete-node:hover { background:#f76f53; color:#1f1f1f; border-color:#f76f53; }
