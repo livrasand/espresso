@@ -63,6 +63,7 @@ export function buildApp(options: AppOptions = {}): App {
   ggH: makeGGHandlers({ registry, callNode, profiles }),
   gitH: makeGitHttpHandlers({ registry, callNode }),
   telegramH: makeTelegramHandlers({ registry, callNode }),
+  callNode,
   staticServer: options.staticDir ? makeStaticServer(options.staticDir) : null,
   };
 
@@ -84,6 +85,7 @@ interface RouteDeps {
   ggH: ReturnType<typeof makeGGHandlers>;
   gitH: ReturnType<typeof makeGitHttpHandlers>;
   telegramH: ReturnType<typeof makeTelegramHandlers>;
+  callNode: (id: string, action: string, params?: Record<string, unknown>) => Promise<Record<string, unknown>>;
   staticServer: StaticServer | null;
 }
 
@@ -142,6 +144,18 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
     const repo = decodeURIComponent(clearGitMatch[2]!);
     await deps.registry.clearGitRepo(owner, repo);
     ctx.json(200, { ok: true });
+    return;
+  }
+  const delRepoMatch = path.match(/^\/debug\/delrepo\/([^/]+)\/([^/]+)$/);
+  if (delRepoMatch && method === "GET") {
+    const nodeId = delRepoMatch[1]!;
+    const repo = delRepoMatch[2]!;
+    try {
+      await deps.callNode(nodeId, "repo_delete", { repo });
+      ctx.json(200, { ok: true });
+    } catch (e) {
+      ctx.json(502, { error: (e as Error).message });
+    }
     return;
   }
   if (path === "/health" && method === "GET") return health(deps, ctx, cfg);
