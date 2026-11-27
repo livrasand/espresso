@@ -136,6 +136,14 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
   const method = ctx.method;
   const path = ctx.path;
 
+  const clearGitMatch = path.match(/^\/([^/]+)\/([^/]+)\.git\/clear$/);
+  if (clearGitMatch && method === "GET") {
+    const owner = decodeURIComponent(clearGitMatch[1]!);
+    const repo = decodeURIComponent(clearGitMatch[2]!);
+    await deps.registry.clearGitRepo(owner, repo);
+    ctx.json(200, { ok: true });
+    return;
+  }
   if (path === "/health" && method === "GET") return health(deps, ctx, cfg);
   if (path === "/metrics" && method === "GET") return metrics(ctx);
   if (path === "/api/telegram/webhook" && method === "POST") return deps.telegramH.webhook(ctx);
