@@ -17,6 +17,11 @@ import { logError } from "../log.js";
 const PAIRING_TTL_SEC = 10 * 60;
 const RESPONSE_TTL_SEC = 120;
 const INBOX_MAX = 64;
+// How long the last-known repo index survives in Strata after a node goes
+// offline. ninfo:<id> itself only lives onlineTtlSec*24 (~36 min), so a
+// disconnected node loses its repo index quickly; this keeps a stale-but-usable
+// copy around so the dashboard/URLs keep working while the node reconnects.
+const REPO_INDEX_TTL_SEC = 30 * 24 * 3600;
 
 export interface RepoEntry {
   name: string;
@@ -192,6 +197,7 @@ export class NodeRegistry {
       del(`node:${id}`),
       del(`online:${id}`),
       del(`ninfo:${id}`),
+      del(`repos:${id}`),
       del(`pairbyId:${id}`),
       del(`inbox:${id}`),
       pendingCode ? del(`paircode:${pendingCode}`) : Promise.resolve(0),
@@ -223,10 +229,17 @@ export class NodeRegistry {
   }
 
   async updateRepos(id: string, repos: RepoEntry[]): Promise<void> {
-    await this.redis.hmsetEx(`ninfo:${id}`, this.onlineTtlSec * 24, { repositories: JSON.stringify(repos) });
+    const serialized = JSON.stringify(repos);
+    await this.redis.hmsetEx(`ninfo:${id}`, this.onlineTtlSec * 24, { repositories: serialized });
+    // Persist a long-lived copy so the repo index survives ninfo expiry while
+    // the node is offline (Strata is git-backed and slow to re-populate).
+    await this.redis.set(`repos:${id}`, serialized, "EX", REPO_INDEX_TTL_SEC).catch((e) =>
+      logError(`strata repos:${id} write failed: ${e.message}`),
+    );
   }
 
-  /** Best-effort read of the cached repo index; never throws. */
+  /** Best-effort read of the cached repo index; never throws. Falls back to the
+   * long-lived repos:<id> copy when ninfo has expired (node offline). */
   async getCachedRepos(id: string): Promise<RepoEntry[]> {
     let info: Record<string, string> = {};
     try {
@@ -242,6 +255,16 @@ export class NodeRegistry {
       } catch {
         /* ignore */
       }
+    }
+    // Fallback: persistent index written on every repo_list response.
+    try {
+      const raw = await this.redis.get(`repos:${id}`);
+      if (typeof raw === "string" && raw !== "") {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed as RepoEntry[];
+      }
+    } catch {
+      /* ignore */
     }
     return [];
   }
@@ -261,6 +284,18 @@ export class NodeRegistry {
         repos = JSON.parse(info["repositories"]) as RepoEntry[];
       } catch {
         repos = [];
+      }
+    }
+    if (repos.length === 0) {
+      // Fallback to the long-lived repo index when ninfo expired (offline).
+      try {
+        const raw = await this.redis.get(`repos:${id}`);
+        if (typeof raw === "string" && raw !== "") {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) repos = parsed as RepoEntry[];
+        }
+      } catch {
+        /* ignore */
       }
     }
     return {

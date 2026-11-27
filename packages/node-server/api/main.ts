@@ -11,8 +11,16 @@ import { logError } from "../src/log.js";
 // Redis client, router wiring).
 const app = buildApp();
 
+// Disable Vercel's automatic body parsing so binary git packs (and other raw
+// payloads) reach the handler untouched.
+export const config = { api: { bodyParser: false }, maxDuration: 60 };
+
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
+    if (req.url && req.url.includes(".git/")) {
+      const pre = (req as unknown as { body?: unknown }).body;
+      console.error("[git-debug] url=", req.url, "method=", req.method, "content-type=", req.headers["content-type"], "content-length=", req.headers["content-length"], "body type=", typeof pre, "isBuffer=", Buffer.isBuffer(pre), "bodyLen=", Buffer.isBuffer(pre) ? (pre as Buffer).length : (typeof pre === "string" ? pre.length : "n/a"));
+    }
     await app.serve(ctxFor(req, res));
   } catch (e) {
     logError(`handler error: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);

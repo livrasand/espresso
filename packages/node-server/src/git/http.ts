@@ -17,7 +17,7 @@ function pktLine(s: string): string {
 export function makeGitHttpHandlers(deps: ApiDeps) {
   const { registry, callNode } = deps;
 
-   async function resolveNode(ctx: HttpCtx, owner: string, repo: string): Promise<string | null> {
+   async function resolveNode(ctx: HttpCtx, owner: string, repo: string): Promise<{ id: string; offline: boolean } | null> {
      let identity = ctx.identity;
      if (identity === "") identity = ctx.header("x-espresso-key") ?? "";
      let nodes: Record<string, unknown>[] = [];
@@ -27,16 +27,24 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
        // Allow unauthenticated clone/push by repo name across all nodes.
        nodes = await registry.list();
      }
+     let foundOffline = false;
+     let offlineNodeId = "";
      for (const n of nodes) {
        const id = str(n["id"]);
        const repos = Array.isArray(n["repositories"]) ? (n["repositories"] as { name: string }[]) : [];
        if (repos.some((r) => r.name === repo)) {
          const online = await registry.isOnline(id);
-         if (online) return id;
+         if (online) return { id, offline: false };
+          foundOffline = true;
+          offlineNodeId = id;
        }
      }
-     if (identity === "") ctx.json(404, { error: "repo not found on any online node" });
-     else ctx.json(404, { error: "repo not found on any online node" });
+     if (foundOffline) {
+       // Repo exists but its node is disconnected: surface that explicitly
+       // instead of a misleading "repository not found".
+       return { id: offlineNodeId, offline: true };
+     }
+     ctx.json(404, { error: "repo not found on any online node" });
      return null;
    }
 
@@ -50,8 +58,10 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
       if (service !== "git-upload-pack" && service !== "git-receive-pack") {
         return ctx.status(400);
       }
-      const nodeId = await resolveNode(ctx, owner, repo);
-      if (nodeId === null) return ctx.json(404, { error: "repo not found" });
+      const resolved = await resolveNode(ctx, owner, repo);
+      if (resolved === null) return ctx.json(404, { error: "repo not found" });
+      if (resolved.offline) return ctx.json(503, { error: "node offline" });
+      const nodeId = resolved.id;
 
       let refs: string[] = [];
       try {
@@ -109,8 +119,10 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
       if (!m) return ctx.status(404);
       const owner = decodeURIComponent(m[1]!);
       const repo = decodeURIComponent(m[2]!);
-      const nodeId = await resolveNode(ctx, owner, repo);
-      if (nodeId === null) return ctx.json(404, { error: "repo not found" });
+      const resolved = await resolveNode(ctx, owner, repo);
+      if (resolved === null) return ctx.json(404, { error: "repo not found" });
+      if (resolved.offline) return ctx.json(503, { error: "node offline" });
+      const nodeId = resolved.id;
        const body = await ctx.bodyBuffer(64 * 1024 * 1024);
        if (body === null) return ctx.json(413, { error: "payload too large" });
        try {
@@ -119,7 +131,12 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
          ctx.raw(200, "application/x-git-upload-pack-result", out);
        } catch (e) {
          console.error("git pack error:", (e as Error).stack || (e as Error).message);
-         ctx.json(502, { error: (e as Error).message });
+         const __msg = (e as Error).message || "";
+         if (__msg.includes("ENOENT")) {
+           ctx.json(503, { error: "git binary not available on server" });
+         } else {
+           ctx.json(502, { error: __msg });
+         }
        }
     },
 
@@ -128,8 +145,10 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
       if (!m) return ctx.status(404);
       const owner = decodeURIComponent(m[1]!);
       const repo = decodeURIComponent(m[2]!);
-      const nodeId = await resolveNode(ctx, owner, repo);
-      if (nodeId === null) return ctx.json(404, { error: "repo not found" });
+      const resolved = await resolveNode(ctx, owner, repo);
+      if (resolved === null) return ctx.json(404, { error: "repo not found" });
+      if (resolved.offline) return ctx.json(503, { error: "node offline" });
+      const nodeId = resolved.id;
        const body = await ctx.bodyBuffer(64 * 1024 * 1024);
        if (body === null) return ctx.json(413, { error: "payload too large" });
        try {
@@ -138,7 +157,12 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
          ctx.raw(200, "application/x-git-receive-pack-result", out);
        } catch (e) {
          console.error("git pack error:", (e as Error).stack || (e as Error).message);
-         ctx.json(502, { error: (e as Error).message });
+         const __msg = (e as Error).message || "";
+         if (__msg.includes("ENOENT")) {
+           ctx.json(503, { error: "git binary not available on server" });
+         } else {
+           ctx.json(502, { error: __msg });
+         }
        }
     },
   };

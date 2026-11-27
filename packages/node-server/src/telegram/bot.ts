@@ -143,6 +143,7 @@ export function makeTelegramHandlers(deps: Deps) {
     if (cmd === "/create") {
       const repo = args[1];
       if (!repo || !safeRepo(repo)) return reply(chatId, "Usage: /create <node> <repo> (valid repo name)");
+      if (!(await registry.isOnline(nodeId))) return reply(chatId, "Node offline.");
       try {
         await callNode(nodeId, "repo_create", { repo });
         await reply(chatId, `Created ${repo}.`);
@@ -155,6 +156,7 @@ export function makeTelegramHandlers(deps: Deps) {
     if (cmd === "/delete") {
       const repo = args[1];
       if (!repo || !safeRepo(repo)) return reply(chatId, "Usage: /delete <node> <repo> (valid repo name)");
+      if (!(await registry.isOnline(nodeId))) return reply(chatId, "Node offline.");
       try {
         await callNode(nodeId, "repo_delete", { repo });
         await reply(chatId, `Deleted ${repo}.`);
@@ -165,6 +167,7 @@ export function makeTelegramHandlers(deps: Deps) {
     }
 
     if (cmd === "/ping") {
+      if (!(await registry.isOnline(nodeId))) return reply(chatId, "Node offline.");
       try {
         await callNode(nodeId, "ping", {});
         await reply(chatId, "pong");
@@ -175,6 +178,7 @@ export function makeTelegramHandlers(deps: Deps) {
     }
 
     if (cmd === "/status") {
+      if (!(await registry.isOnline(nodeId))) return reply(chatId, "Node offline.");
       try {
         const resp = await callNode(nodeId, "storage_status", {});
         await reply(chatId, JSON.stringify(resp, null, 2));
@@ -185,6 +189,7 @@ export function makeTelegramHandlers(deps: Deps) {
     }
 
     if (cmd === "/restart") {
+      if (!(await registry.isOnline(nodeId))) return reply(chatId, "Node offline.");
       try {
         await callNode(nodeId, "restart", {});
         await reply(chatId, "Restart command sent.");

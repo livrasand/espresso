@@ -60,7 +60,7 @@ export function config(): Config {
     secret: loadSecret(),
     apiKey: env("ESPRESSO_API_KEY") ?? "",
     nodeOnlineTtlSec: Number(env("NODE_ONLINE_TTL") ?? "90") || 90,
-    rpcTimeoutMs: Math.max(1000, Number(env("RPC_TIMEOUT_MS") ?? "60000") || 60000),
+    rpcTimeoutMs: Math.max(1000, Number(env("RPC_TIMEOUT_MS") ?? "90000") || 90000),
     logFormat: env("LOG_FORMAT") === "json" ? "json" : "text",
     commitHash: env("COMMIT_HASH") ?? "dev",
     sourceRepo: "https://github.com/livrasand/Espresso",

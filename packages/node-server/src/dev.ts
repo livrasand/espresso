@@ -8,8 +8,8 @@ import { ctxFor } from "./http/ctx.js";
 import { buildApp } from "./router.js";
 import { logError } from "./log.js";
 
-// src/dev.ts → packages/node-server → repo root one further up.
-const webRoot = path.resolve(fileURLToPath(new URL("../../../web", import.meta.url)));
+// src/dev.ts → packages/node-server; UI lives in ./public.
+const webRoot = path.resolve(fileURLToPath(new URL("../public", import.meta.url)));
 
 // Load .env from the package (godotenv equivalent; no-op when absent).
 try {

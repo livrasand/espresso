@@ -4,7 +4,8 @@
   "cleanUrls": true,
   "functions": {
     "api/main.ts": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "bin/git"
     }
   },
   "rewrites": [
@@ -50,7 +51,7 @@
     }
   ],
   "installCommand": "npm install",
-  "buildCommand": "npm run build",
+  "buildCommand": "mkdir -p bin && (cp /usr/bin/git bin/git 2>/dev/null || true) && npm run build",
   "headers": [
     {
       "source": "/(.*)\\.(css|js|svg|png|ico|woff2)",

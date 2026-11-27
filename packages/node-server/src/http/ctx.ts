@@ -74,19 +74,27 @@ export function ctxFor(req: IncomingMessage, res: ServerResponse, preBody?: unkn
     async bodyBuffer(limit): Promise<Buffer | null> {
       // Vercel's runtime pre-parses the body into req.body and fully
       // consumes the stream. Prefer that when present (mirrors body()).
-      const pre = (req as unknown as { body?: unknown }).body;
-      if (pre !== undefined && pre !== null) {
-        if (Buffer.isBuffer(pre)) {
-          if (pre.length > limit) return null;
-          return pre;
+      // Also check a few alternate properties some runtimes use for the raw body.
+      const anyReq = req as unknown as { body?: unknown; rawBody?: unknown; __body?: unknown };
+      for (const candidate of [anyReq.body, anyReq.rawBody, anyReq.__body]) {
+        if (candidate === undefined || candidate === null) continue;
+        if (Buffer.isBuffer(candidate)) {
+          if (candidate.length > limit) return null;
+          return candidate;
         }
-        if (typeof pre === "string") {
-          const b = Buffer.from(pre, "utf8");
+        if (typeof candidate === "string") {
+          // Could be utf8 text or base64; try base64 first if it looks like it.
+          let b: Buffer;
+          if (/^[A-Za-z0-9+/]+=*$/.test(candidate) && candidate.length % 4 === 0) {
+            b = Buffer.from(candidate, "base64");
+          } else {
+            b = Buffer.from(candidate, "utf8");
+          }
           if (b.length > limit) return null;
           return b;
         }
         // pre-parsed JSON object → serialize back to a buffer
-        const b = Buffer.from(JSON.stringify(pre), "utf8");
+        const b = Buffer.from(JSON.stringify(candidate), "utf8");
         if (b.length > limit) return null;
         return b;
       }

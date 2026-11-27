@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import type { NodeRegistry } from "../nodes/registry.js";
 
@@ -66,9 +67,22 @@ async function syncToNode(callNode: CallNode, nodeId: string, repo: string, loca
   }
 }
 
+function gitBin(): string {
+  // Prefer a bundled binary (shipped for serverless runtimes like Vercel that
+  // have no system git), then fall back to whatever is on PATH.
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const bundled = path.resolve(here, "..", "..", "bin", "git");
+    if (fs.existsSync(bundled)) return bundled;
+  } catch {
+    /* ignore */
+  }
+  return "git";
+}
+
 function runGit(args: string[], cwd: string, input: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const p = spawn("git", args, { cwd, stdio: ["pipe", "pipe", "pipe"] });
+    const p = spawn(gitBin(), args, { cwd, stdio: ["pipe", "pipe", "pipe"] });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     p.stdout.on("data", (d) => out.push(d));
