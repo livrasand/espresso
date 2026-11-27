@@ -54,25 +54,44 @@ async function syncFromStrata(registry: NodeRegistry, owner: string, repo: strin
 }
 
 async function syncToStrata(registry: NodeRegistry, owner: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
-  // Clear stale files from a previous (possibly partial) sync.
-  await registry.clearGitRepo(owner, repo).catch(() => {});
-  const paths: string[] = [];
-  async function walk(dir: string, prefix: string) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
+  // Collect all files into memory first (fast, no I/O to Strata), so the
+  // temp dir is no longer needed afterwards.
+  const collected: { rel: string; b64: string }[] = [];
+  function walk(dir: string, prefix: string) {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
     for (const e of entries) {
       const rel = prefix === "" ? e.name : `${prefix}/${e.name}`;
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
-        await walk(full, rel);
+        walk(full, rel);
       } else {
         const data = fs.readFileSync(full);
-        await registry.setGitFile(owner, repo, rel, data.toString("base64"));
-        paths.push(rel);
+        collected.push({ rel, b64: data.toString("base64") });
       }
     }
   }
-  await walk(localDir, "");
-  await registry.setGitFileList(owner, repo, paths);
+  walk(localDir, "");
+  const paths = collected.map((c) => c.rel);
+  const deadline = Date.now() + 45000;
+  try {
+    for (const c of collected) {
+      if (Date.now() > deadline) {
+        console.error("syncToStrata: deadline exceeded");
+        return;
+      }
+      await registry.setGitFile(owner, repo, c.rel, c.b64);
+    }
+    if (Date.now() <= deadline) {
+      await registry.setGitFileList(owner, repo, paths);
+    }
+  } catch (e) {
+    console.error("syncToStrata failed:", e instanceof Error ? e.message : String(e));
+  }
 }
 
 async function syncToNode(callNode: CallNode, nodeId: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
