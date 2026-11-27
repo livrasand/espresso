@@ -11,9 +11,7 @@ import { logError } from "../src/log.js";
 // Redis client, router wiring).
 const app = buildApp();
 
-// Disable Vercel's automatic body parsing so binary git packs (and other raw
-// payloads) reach the handler untouched.
-export const config = { api: { bodyParser: false }, maxDuration: 60 };
+export const config = { maxDuration: 60 };
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
