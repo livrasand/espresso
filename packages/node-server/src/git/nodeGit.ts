@@ -190,20 +190,20 @@ export async function runNodeGitPack(
       : ["receive-pack", "--stateless-rpc", repoDir];
     const output = await runGit(gitArgs, tmpRoot, input);
     if (service === "git-receive-pack") {
-      // Primary: persist the updated repo to Strata (control plane store) so
-      // clones work regardless of node latency. Best-effort node sync too.
+      // Persist the updated repo to Strata (control plane store) BEFORE cleanup,
+      // so clones work regardless of node latency.
       if (registry && owner) {
-        // Fire-and-forget: Strata writes are slow; don't block the push.
-        void syncToStrata(registry, owner, repo, repoDir).catch((e) =>
-          console.error("syncToStrata failed:", (e as Error).message),
-        );
-      }
-      if (nodeId) {
         try {
-          await syncToNode(callNode, nodeId, repo, repoDir);
+          await syncToStrata(registry, owner, repo, repoDir);
         } catch (e) {
-          console.error("syncToNode failed:", (e as Error).message);
+          console.error("syncToStrata failed:", (e as Error).message);
         }
+      }
+      // Node sync is fire-and-forget (slow); don't block the push.
+      if (nodeId) {
+        void syncToNode(callNode, nodeId, repo, repoDir).catch((e) =>
+          console.error("syncToNode failed:", (e as Error).message),
+        );
       }
     }
     return output;
