@@ -119,7 +119,14 @@ function gitBin(): string {
   try {
     const here = path.dirname(fileURLToPath(import.meta.url));
     const bundled = path.resolve(here, "..", "..", "bin", "git");
-    if (fs.existsSync(bundled)) return bundled;
+    const gitCore = path.resolve(here, "..", "..", "bin", "git-core");
+    if (fs.existsSync(bundled)) {
+      // Make sure git can find its helper binaries (unpack-objects, ...).
+      if (fs.existsSync(gitCore) && !process.env.GIT_EXEC_PATH) {
+        process.env.GIT_EXEC_PATH = gitCore;
+      }
+      return bundled;
+    }
   } catch {
     /* ignore */
   }

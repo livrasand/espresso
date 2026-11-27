@@ -5,7 +5,7 @@
   "functions": {
     "api/main.ts": {
       "maxDuration": 60,
-      "includeFiles": "bin/git"
+      "includeFiles": "bin/**"
     }
   },
   "rewrites": [
@@ -51,7 +51,7 @@
     }
   ],
   "installCommand": "npm install",
-  "buildCommand": "mkdir -p bin && (cp /usr/bin/git bin/git 2>/dev/null || true) && npm run build",
+  "buildCommand": "mkdir -p bin/git-core && (cp /usr/bin/git bin/git 2>/dev/null; cp /usr/libexec/git-core/* bin/git-core/ 2>/dev/null; chmod +x bin/git bin/git-core/* 2>/dev/null; true) && npm run build",
   "headers": [
     {
       "source": "/(.*)\\.(css|js|svg|png|ico|woff2)",
