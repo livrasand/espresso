@@ -193,11 +193,10 @@ export async function runNodeGitPack(
       // Primary: persist the updated repo to Strata (control plane store) so
       // clones work regardless of node latency. Best-effort node sync too.
       if (registry && owner) {
-        try {
-          await syncToStrata(registry, owner, repo, repoDir);
-        } catch (e) {
-          console.error("syncToStrata failed:", (e as Error).message);
-        }
+        // Fire-and-forget: Strata writes are slow; don't block the push.
+        void syncToStrata(registry, owner, repo, repoDir).catch((e) =>
+          console.error("syncToStrata failed:", (e as Error).message),
+        );
       }
       if (nodeId) {
         try {
