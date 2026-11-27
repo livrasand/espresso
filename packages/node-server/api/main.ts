@@ -15,11 +15,6 @@ export const config = { maxDuration: 60 };
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
-    if (req.url && req.url.includes(".git/")) {
-      const pre = (req as unknown as { body?: unknown }).body;
-      const r = req as unknown as { readableEnded?: boolean; complete?: boolean; readableLength?: number };
-      console.error("[git-debug] url=", req.url, "method=", req.method, "content-type=", req.headers["content-type"], "content-length=", req.headers["content-length"], "body type=", typeof pre, "isBuffer=", Buffer.isBuffer(pre), "bodyLen=", Buffer.isBuffer(pre) ? (pre as Buffer).length : (typeof pre === "string" ? pre.length : "n/a"), "readableEnded=", r.readableEnded, "complete=", r.complete, "readableLength=", r.readableLength);
-    }
     await app.serve(ctxFor(req, res));
   } catch (e) {
     logError(`handler error: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
