@@ -1,21 +1,4 @@
 #pragma once
-// Node Protocol v2 — HTTP polling client for the Espresso control plane.
-// Replaces the WebSocket v3 transport (server lives on Vercel now, which
-// cannot host WebSockets). Wire contract is implemented server-side in
-// packages/node-server/src/nodes/ingest.ts:
-//
-//   POST /node/pair     {id, code, name, pubkey, ts, sig}           -> {ok}
-//   POST /node/poll     {id, token?, pubkey?, ts, sig?, + telemetry}
-//                       -> {ok, online, commands:[{req_id?, action, ...}]}
-//   POST /node/respond  {id, token, req_id, ok, error?, ...payload} -> {ok}
-//
-// - Signed payloads are "<action>:<id>:<tsMillis>" over Ed25519 (hex).
-// - Once paired, the stored token is the sole bearer credential; the
-//   signature is only needed for pairing messages (pair, unpaired poll).
-// - Commands arrive in the poll's `commands` array and are answered with
-//   POST /node/respond keyed by req_id. pair_ok and reqless repo_list
-//   pushes have no req_id (pair_ok completes pairing; repo_list is given
-//   a synthetic req_id so the server can refresh its repo index anyway).
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -29,7 +12,6 @@
 #include "storage.h"
 #include "provision.h"
 
-// Ed25519 via Monocypher (lightweight, no mbedtls dependency)
 extern "C" {
 #include <monocypher.h>
 }
@@ -49,8 +31,6 @@ public:
         }
     }
 
-    // No persistent connection to open in v2: HTTP requests are made
-    // per-poll. Kept for lifecycle parity with the WebSocket version.
     void connect() {
         if (!provision.configured) return;
         log_i("HTTP polling %s:%d (base path %s), TLS=%s",
@@ -73,8 +53,6 @@ public:
             return;
         }
 
-        // Unpaired: refresh the pairing registration on PAIR_RETRY_MS so the
-        // server-side paircode TTL stays fresh, then poll for pair_ok.
         if (now - lastPair >= (uint32_t)PAIR_RETRY_MS) {
             lastPair = now;
             ensurePairCode();
@@ -83,15 +61,12 @@ public:
         pollUnpaired();
     }
 
-    // Guarantees a (stable) pairing code exists before requesting pairing.
     void ensurePairCode() {
         if (provision.pairCode.isEmpty()) {
             provision.pairCode = Provision::genPairCode();
             provision.savePairCode(provision.pairCode);
         }
     }
-
-    // ── Outgoing messages ─────────────────────────────
 
     void sendPairRequest(const char* code) {
         if (!provision.configured) return;
@@ -138,7 +113,6 @@ public:
             return;
         }
         if (status == 401) {
-            // Bad/persisted token (server said pair_rejected): start over.
             log_w("hello rejected — clearing stored token");
             online = false;
             paired = false;
@@ -168,12 +142,9 @@ public:
         if (status == 200) drainCommands(resp);
     }
 
-    // ── Incoming command dispatch ─────────────────────
 
     void drainCommands(JsonDocument& resp) {
         if (!resp["commands"].is<JsonArray>()) return;
-        // All commands in this batch were already consumed server-side, so
-        // every one of them must be handled now or they are lost.
         for (JsonObject cmdObj : resp["commands"].as<JsonArray>()) {
             JsonDocument cmd;
             cmd.set(cmdObj);

@@ -1,14 +1,8 @@
 #pragma once
-// CH375B USB host controller — UART serial driver (9-bit protocol).
-// The CH375B uses 1 start + 9 data bits + 1 stop at 9600 baud by default.
-// D8=0: command, D8=1: data.
-// Compiled always, but only talks hardware when ch375b_init() succeeds
-// (i.e. a CH375B is physically wired and responds to GET_IC_VER).
 
 #include <Arduino.h>
 #include "config.h"
 
-// ── CH375B command set (subset used by storage) ───
 #define CH375B_CMD_GET_IC_VER     0x01
 #define CH375B_CMD_SET_USB_MODE   0x15
 #define CH375B_CMD_GET_STATUS     0x22
@@ -32,7 +26,6 @@
 #define CH375B_CMD_SET_FILE_NAME  0x2F
 #define CH375B_CMD_DIR_CREATE     0x40
 
-// Status codes returned by GET_STATUS
 #define CH375B_USB_INT_SUCCESS    0x14
 #define CH375B_USB_INT_DISK_READ  0x1D
 #define CH375B_USB_INT_DISK_WRITE 0x1E

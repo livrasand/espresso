@@ -403,14 +403,23 @@ export class NodeRegistry {
 
   async listGitFiles(owner: string, repo: string): Promise<string[]> {
     const raw = await this.redis.get(`gitfiles:${owner}:${repo}`).catch(() => null);
-    if (typeof raw !== "string" || raw === "") return [];
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed as string[];
-    } catch {
-      /* ignore */
+    if (typeof raw === "string" && raw !== "") {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed as string[];
+      } catch {
+        /* ignore */
+      }
     }
-    return [];
+    // Fallback: discover files via KEYS (handles stale/partial state where
+    // the file list is missing but individual files exist).
+    try {
+      const keys = await this.redis.keys(`gitfile:${owner}:${repo}:*`);
+      const prefix = `gitfile:${owner}:${repo}:`;
+      return keys.map((k) => k.slice(prefix.length)).filter((p) => p !== "");
+    } catch {
+      return [];
+    }
   }
 
   async clearGitRepo(owner: string, repo: string): Promise<void> {
