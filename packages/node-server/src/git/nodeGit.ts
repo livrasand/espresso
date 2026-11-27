@@ -54,6 +54,8 @@ async function syncFromStrata(registry: NodeRegistry, owner: string, repo: strin
 }
 
 async function syncToStrata(registry: NodeRegistry, owner: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
+  // Clear any stale/partial Strata data first.
+  await registry.clearGitRepo(owner, repo).catch(() => {});
   // Collect all files into memory first (fast, no I/O to Strata), so the
   // temp dir is no longer needed afterwards.
   const collected: { rel: string; b64: string }[] = [];

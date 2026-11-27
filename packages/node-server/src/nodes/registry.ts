@@ -414,11 +414,24 @@ export class NodeRegistry {
   }
 
   async clearGitRepo(owner: string, repo: string): Promise<void> {
+    // Delete by known list first.
     const old = await this.listGitFiles(owner, repo);
     for (const p of old) {
       for (let a = 0; a < 3; a++) {
         try { await this.redis.del(`gitfile:${owner}:${repo}:${p}`); break; } catch { await new Promise((r) => setTimeout(r, 200)); }
       }
+    }
+    // Also sweep any stray gitfile: keys (e.g. from a partial/corrupt sync)
+    // using KEYS, so a stale refs/heads/main can't linger.
+    try {
+      const stray = await this.redis.keys(`gitfile:${owner}:${repo}:*`);
+      for (const k of stray) {
+        for (let a = 0; a < 3; a++) {
+          try { await this.redis.del(k); break; } catch { await new Promise((r) => setTimeout(r, 200)); }
+        }
+      }
+    } catch {
+      /* ignore */
     }
     for (let a = 0; a < 3; a++) {
       try { await this.redis.del(`gitfiles:${owner}:${repo}`); break; } catch { await new Promise((r) => setTimeout(r, 200)); }
