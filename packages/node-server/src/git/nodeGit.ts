@@ -134,13 +134,12 @@ export async function runNodeGitPack(
       : ["receive-pack", "--stateless-rpc", repoDir];
     const output = await runGit(gitArgs, tmpRoot, input);
     if (service === "git-receive-pack") {
-      // Best effort: sync failures must not fail the push from the client's
-      // point of view; log and continue.
-      try {
-        await syncToNode(callNode, nodeId, repo, repoDir);
-      } catch (e) {
-        console.error("syncToNode failed:", (e as Error).message);
-      }
+      // Fire-and-forget: syncing the whole repo back to the node can take
+      // longer than Vercel's 60 s limit. Do not block the push response;
+      // sync continues in the background and logs any failures.
+      void syncToNode(callNode, nodeId, repo, repoDir).catch((e) =>
+        console.error("syncToNode failed:", (e as Error).message),
+      );
     }
     return output;
   } finally {
