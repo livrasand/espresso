@@ -1,11 +1,3 @@
-// Profile store over Redis: the public identity layered on top of an account
-// number. Keyed by the account hash so it never touches the raw number.
-//   profile:<sha256(account)>  string JSON {username, display_name, bio, avatar, links, created_at}
-//   names:<username>           string account hash (uniqueness index)
-//
-// Stored as a single JSON string (not a hash) because the Strata backend is
-// git-backed and slow: one PUT per profile instead of one PUT per field.
-
 import crypto from "node:crypto";
 import type { Redis } from "../redis/index.js";
 

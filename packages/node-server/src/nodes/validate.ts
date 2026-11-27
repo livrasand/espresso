@@ -1,6 +1,3 @@
-// Input validation (port of safeRepo/safePath/validNodeName/isSafeNodeID
-// from internal/node).
-
 const VALID_REPO = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const VALID_REL_PATH = /^[A-Za-z0-9._/@{}:+,-]{1,512}$/;
 

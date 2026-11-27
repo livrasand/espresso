@@ -1,5 +1,3 @@
-// Shared helper for normalizing node-reported repo entries.
-
 import type { RepoEntry } from "./registry.js";
 import { asScalarNumber } from "./validate.js";
 

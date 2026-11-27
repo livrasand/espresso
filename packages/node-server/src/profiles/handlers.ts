@@ -1,14 +1,3 @@
-// Profile handlers: the public identity layered on an account number.
-//   GET  /api/profile                    own profile (requires session)
-//   PUT  /api/profile                    create/update own profile
-//   GET  /api/profiles/:username         public profile
-//   GET  /api/profiles/:username/activity public heat map (synthesized)
-//
-// The username is derived server-side from the account number the first time
-// a profile is created (the 16-digit number is the identity; usernames only
-// have to be unique). The activity heat map is approximated from the account's
-// paired nodes and repositories — there is no commit history to derive from.
-
 import type { HttpCtx } from "../http/ctx.js";
 import type { NodeRegistry } from "../nodes/registry.js";
 import { ProfileStore, ProfileValidationError, MAX_PROFILE_BODY, type Profile } from "./store.js";
@@ -75,8 +64,6 @@ export function makeProfileHandlers(store: ProfileStore, registry: NodeRegistry)
         return ctx.json(400, { error: "invalid JSON body" });
       }
 
-      // Username is fixed once set: we can't cheaply check existing without an
-      // extra Strata read, so accept the client-provided or derived username.
       const requested = typeof parsed["username"] === "string" ? parsed["username"] : "";
       const username = requested !== "" ? store.validateUsername(requested) : derivedUsername(store, account);
 
@@ -115,18 +102,13 @@ export function makeProfileHandlers(store: ProfileStore, registry: NodeRegistry)
 }
 
 /* ── synthesized activity ──────────────────────────────────────────── */
-//
-// There is no commit log on the forge yet, so the heat map is approximated
-// from what we do know: how many repositories the account's nodes expose and
-// how recently each node was seen. It is deterministic for a given input so
-// the map is stable across reloads. `approximate: true` tells the UI to say so.
 
-const ACTIVITY_DAYS = 364; // 52 weeks
+const ACTIVITY_DAYS = 364;
 
 interface DayCell {
   date: string;
   count: number;
-  level: number; // 0-4
+  level: number;
 }
 
 async function buildActivity(
@@ -134,7 +116,6 @@ async function buildActivity(
   registry: NodeRegistry,
   profile: Profile,
 ): Promise<Record<string, unknown>> {
-  // Resolve this profile's nodes by matching the stored account hash.
   const accountHash = await store.accountHashForUsername(profile.username);
   const allNodes = await registry.list();
   const nodes = accountHash === null
@@ -161,7 +142,6 @@ async function buildActivity(
   for (let i = ACTIVITY_DAYS - 1; i >= 0; i--) {
     const d = new Date(today.getTime() - i * 86_400_000);
     const weekday = d.getUTCDay();
-    // Weekends are quieter; the whole map ramps up with repo count.
     const bias = weekday === 0 || weekday === 6 ? 0.35 : 1;
     const intensity = 0.15 + Math.min(repoCount, 8) / 8 + (profile.bio.length > 0 ? 0.1 : 0);
     const roll = rng() * bias * intensity;
@@ -170,7 +150,6 @@ async function buildActivity(
     total += count;
   }
 
-  // Weekly buckets (Sunday-aligned) for the calendar grid.
   for (let w = 0; w < 52; w++) {
     perWeek.push(cells.slice(w * 7, w * 7 + 7).reduce((s, c) => s + c.count, 0));
   }

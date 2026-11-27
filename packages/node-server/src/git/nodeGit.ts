@@ -163,9 +163,6 @@ export async function runNodeGitPack(
   const repoDir = path.join(tmpRoot, repo);
   try {
     fs.mkdirSync(repoDir, { recursive: true });
-    // Populate the temp repo from Strata (or node) before running git, so
-    // receive-pack has the old objects for thin packs and upload-pack can
-    // serve clones.
     let fromStrata = false;
     if (registry && owner) {
       const paths = await registry.listGitFiles(owner, repo);
@@ -177,7 +174,8 @@ export async function runNodeGitPack(
     if (!fromStrata && nodeId && service === "git-upload-pack") {
       await syncFromNode(callNode, nodeId, repo, repoDir);
     }
-    if (!fs.existsSync(path.join(repoDir, "HEAD"))) {
+    // Initialize a bare repo if the directory isn't already a valid git repo.
+    if (!fs.existsSync(path.join(repoDir, "HEAD")) || !fs.existsSync(path.join(repoDir, "objects"))) {
       await runGit(["init", "--bare", repoDir], tmpRoot, Buffer.alloc(0)).catch(() => {});
     }
     const gitArgs = service === "git-upload-pack"
