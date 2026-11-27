@@ -1,8 +1,4 @@
 #pragma once
-// Espresso Node Provisioning — WiFi AP + captive portal + first-run setup.
-// Stores node_id, wifi_ssid, wifi_pass, server_host, server_port,
-// server_path (Node Protocol v2 base), node_name, pubkey_hex, privkey_hex
-// in NVS Preferences.
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -24,7 +20,7 @@ public:
     String wifiPass;
     String serverHost;
     uint16_t serverPort;
-    String serverPath;   // Node Protocol v2 base, e.g. "/node"
+    String serverPath;
     String pubkeyHex;
     String privkeyHex;
     String pairCode;
@@ -45,8 +41,6 @@ public:
         wifiPass   = prefs.getString("wifi_pass", "");
         serverHost = prefs.getString("server_host", "");
         serverPort = prefs.getUShort("server_port", 443);
-        // Migrate legacy v3 provisioning: it stored the full WebSocket path
-        // ("/node/ws"); strip it down to the v2 base.
         serverPath = prefs.getString("server_path", "");
         if (serverPath.isEmpty()) {
             String legacy = prefs.getString("server_ws_path", "");
@@ -62,8 +56,6 @@ public:
         prefs.end();
     }
 
-    // Normalize user-provided server endpoints: accept full URLs like
-    // "http://host:port/path" and reduce them to host/port/path.
     void sanitize() {
         String h = serverHost;
         h.trim();
@@ -90,7 +82,6 @@ public:
         prefs.putBool("configured", true);
         prefs.putString("node_id", nid);
         prefs.putString("node_name", name);
-        // Normalize before persisting so a user-entered URL is handled.
         serverHost = host;
         serverPort = port;
         serverPath = path;
@@ -143,7 +134,6 @@ public:
         prefs.clear();
         prefs.end();
 
-        // Limpiar también el estado en RAM
         configured = false;
         nodeId = "";
         nodeName = "";

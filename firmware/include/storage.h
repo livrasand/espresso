@@ -1,8 +1,4 @@
 #pragma once
-// Unified storage interface — SD card, CH375B USB host, and internal
-// LittleFS flash. Priority: SD → USB → Flash (fallback/overflow).
-// When no external storage is present, repositories are stored on the
-// ESP32's internal flash filesystem.
 
 #include <SD.h>
 #include <SPI.h>
@@ -16,12 +12,11 @@ public:
     bool sdOk   = false;
     bool usbOk  = false;
     bool flashOk = false;
-    bool usbDetecting = false;  // true while CH375B probe is in progress
+    bool usbDetecting = false;
 
     void begin() {
         log_i("Initializing storage subsystem...");
 
-        // ── SD card initialization (with retry logic) ────────────
         log_i("[SD] Probing SD card on VSPI bus (CS=GPIO%d, CLK=%d, MISO=%d, MOSI=%d)",
               SD_CS, SD_CLK, SD_MISO, SD_MOSI);
 
@@ -59,17 +54,14 @@ public:
             log_e("[SD]   5. Try a different SD card (some are ESP32-incompatible)");
         }
 
-        // ── CH375B USB host initialization (dynamic runtime detection) ─
         if (!sdOk) {
             detectUSB();
         }
 
-        // ── Internal LittleFS flash initialization ────────────
         if (!sdOk) {
             initFlash();
         }
 
-        // ── Final storage status ──────────────────────────────
         if (!sdOk && !usbOk && !flashOk) {
             log_e("[STORAGE] CRITICAL: No storage backend available!");
             log_e("[STORAGE] Node will connect but cannot store repositories.");
@@ -94,9 +86,8 @@ public:
               flashOk ? "YES" : "NO", ch375b.available ? "YES" : "NO");
     }
 
-    // Attempt USB detection independently (call when SD just failed or on hot-plug)
     bool detectUSB() {
-        if (usbDetecting) return usbOk;  // avoid re-entrance
+        if (usbDetecting) return usbOk;
         usbDetecting = true;
 
         log_i("[USB] Probing CH375B USB host controller (TX=GPIO%d, RX=GPIO%d)...", CH375B_TX, CH375B_RX);
@@ -126,7 +117,7 @@ public:
                 } else {
                     log_e("[USB] diskConnect FAILED — check USB drive is plugged in and powered");
                 }
-                break; // chip found but disk ops failed — don't retry chip detection
+                break;
             } else {
                 log_w("[USB] CH375B not responding (attempt %d/%d)", attempt, usbRetries);
             }
@@ -139,11 +130,9 @@ public:
         return false;
     }
 
-    // Initialize internal LittleFS flash storage
     bool initFlash() {
         log_i("[FLASH] Probing internal LittleFS filesystem...");
 
-        // Try to mount LittleFS; auto-format if the partition is corrupted
         flashOk = LittleFS.begin(true);
 
         if (flashOk) {
@@ -164,27 +153,21 @@ public:
         return flashOk;
     }
 
-    // Translate external mount paths to internal flash paths.
-    // e.g. "/sd/myrepo/README.md" → "/myrepo/README.md"
     String translateToFlashPath(const char* path) {
         String p = path;
 
-        // Strip /sd/ prefix
         if (p.startsWith("/sd/")) {
             p = p.substring(3);
         }
-        // Strip /usb/ prefix
         else if (p.startsWith("/usb/")) {
             p = p.substring(4);
         }
-        // Handle bare mount points
         else if (p == "/sd") {
             p = "/";
         } else if (p == "/usb") {
             p = "/";
         }
 
-        // Ensure path is not empty and starts with /
         if (p.length() == 0) {
             p = "/";
         }
@@ -192,7 +175,6 @@ public:
         return p;
     }
 
-    // ── Stats for heartbeat ───────────────────────────
     uint64_t totalBytes() {
         uint64_t t = 0;
         if (sdOk)  t += SD.totalBytes();
@@ -204,7 +186,7 @@ public:
     uint64_t freeBytes() {
         uint64_t f = 0;
         if (sdOk)  f += SD.totalBytes() - SD.usedBytes();
-        if (usbOk) f += (uint64_t)ch375b.diskCapacity() * 512;  // rough
+        if (usbOk) f += (uint64_t)ch375b.diskCapacity() * 512;
         if (flashOk) f += LittleFS.totalBytes() - LittleFS.usedBytes();
         return f;
     }
@@ -219,12 +201,10 @@ public:
         return 0;
     }
 
-    // Check if any storage is available
     bool hasStorage() {
         return sdOk || usbOk || flashOk;
     }
 
-    // Which backend is currently serving requests?
     const char* getPrimaryStorage() {
         if (sdOk && usbOk && flashOk) return "SD+USB+Flash";
         if (sdOk && usbOk) return "SD+USB";
@@ -236,7 +216,6 @@ public:
         return "NONE";
     }
 
-    // Get storage status as a human-readable string
     String getStatusString() {
         if (sdOk && usbOk && flashOk) return "SD+USB+Flash";
         if (sdOk && usbOk) return "SD+USB";
@@ -248,7 +227,6 @@ public:
         return "NONE";
     }
 
-    // Get detailed storage status for diagnostics
     String getDetailedStatus() {
         String status = "Storage: ";
         if (!sdOk && !usbOk && !flashOk) {
@@ -268,8 +246,6 @@ public:
         return status;
     }
 
-    // Re-initialize storage — useful for hot-plug detection
-    // Returns true if any storage became available
     bool reinit() {
         log_i("[STORAGE] Re-initializing storage subsystem (hot-plug/resync)...");
 
@@ -277,7 +253,6 @@ public:
         bool wasUsbOk = usbOk;
         bool wasFlashOk = flashOk;
 
-        // ── Re-initialize SD ──────────────────────────────
         sdOk = false;
         const int sdRetries = 2;
         for (int attempt = 1; attempt <= sdRetries; attempt++) {
@@ -290,12 +265,10 @@ public:
             delay(100);
         }
 
-        // ── Re-initialize CH375B/USB ──────────────────────
         usbOk = false;
-        ch375b.available = false;  // force re-detection
+        ch375b.available = false;
         detectUSB();
 
-        // ── Re-initialize LittleFS Flash ──────────────────
         flashOk = false;
         initFlash();
 
@@ -317,7 +290,6 @@ public:
         return nowAvailable;
     }
 
-    // ── File I/O (SD-primary, USB fallback, Flash fallback) ───────────
 
     bool fileExists(const char* path) {
         if (sdOk) {
@@ -355,11 +327,8 @@ public:
         return false;
     }
 
-    // Read up to `maxLen` bytes from `path` starting at `offset`.
-    // Returns actual bytes read, writes into `buf`.
     size_t readFile(const char* path, uint32_t offset,
                     uint8_t* buf, size_t maxLen) {
-        // Try SD first
         if (sdOk) {
             File f = SD.open(path, FILE_READ);
             if (f) {
@@ -377,7 +346,6 @@ public:
             log_d("[FS] SD open failed: %s → trying USB...", path);
         }
 
-        // Fall back to USB
         if (usbOk) {
             if (ch375b.fileOpen(path)) {
                 log_d("[FS] READ from USB: %s (offset=%u, maxLen=%u)", path, offset, maxLen);
@@ -394,7 +362,6 @@ public:
             log_d("[FS] USB open failed: %s → trying Flash...", path);
         }
 
-        // Fall back to internal flash
         if (flashOk) {
             String flashPath = translateToFlashPath(path);
             File f = LittleFS.open(flashPath.c_str(), "r");
@@ -422,10 +389,8 @@ public:
         return 0;
     }
 
-    // Write `len` bytes to `path` at `offset`.  Creates file if needed.
     bool writeFile(const char* path, uint32_t offset,
                    const uint8_t* data, size_t len) {
-        // Try SD first
         if (sdOk) {
             File f = SD.open(path, FILE_WRITE);
             if (f) {
@@ -444,10 +409,8 @@ public:
             }
         }
 
-        // Fall back to USB
         if (usbOk) {
             log_d("[FS] WRITE to USB: %s (offset=%u, len=%u)", path, offset, len);
-            // CH375B fileCreate overwrites if exists, which is desired for write
             if (ch375b.fileCreate(path)) {
                 if (ch375b.byteLocate(offset)) {
                     bool ok = ch375b.byteWrite(data, len);
@@ -465,7 +428,6 @@ public:
             }
         }
 
-        // Fall back to internal flash
         if (flashOk) {
             String flashPath = translateToFlashPath(path);
             log_d("[FS] WRITE to Flash: %s → %s (offset=%u, len=%u)",
@@ -531,11 +493,6 @@ public:
         return false;
     }
 
-    // ── recursive directory-tree deletion ──────────────────────────────
-    // SD.remove()/LittleFS.remove() only unlink *files*, so deleting a
-    // repository directory needs a depth-first traversal first: recurse
-    // into every subdirectory, unlink the files, then rmdir bottom-up.
-
     bool sdRemoveTree(const char* path) {
         File dir = SD.open(path);
         if (!dir) {
@@ -544,18 +501,14 @@ public:
         }
         if (!dir.isDirectory()) {
             dir.close();
-            return SD.remove(path);  // plain file
+            return SD.remove(path);
         }
 
-        // Gather entry names first: deleting while iterating can corrupt
-        // the openNextFile() cursor position.
         std::vector<String> entries;
         File entry;
         while ((entry = dir.openNextFile())) {
             String name = entry.name();
             entry.close();
-            // Core versions differ: some return the bare name, some the
-            // full path. Normalize to the bare name.
             int slash = name.lastIndexOf('/');
             if (slash >= 0) name = name.substring(slash + 1);
             if (name != "." && name != ".." && !name.isEmpty()) {
@@ -590,7 +543,7 @@ public:
         }
         if (!dir.isDirectory()) {
             dir.close();
-            return LittleFS.remove(flashPath);  // plain file
+            return LittleFS.remove(flashPath);
         }
 
         std::vector<String> entries;
@@ -625,11 +578,6 @@ public:
     }
 
     bool usbRemoveTree(const char* path) {
-        // CH375B exposes no directory attribute while enumerating and has
-        // no rmdir, so this is best effort only: erase every file the
-        // enumerator reports beneath the path, then try to erase the
-        // path itself. Repositories with subdirectories cannot be fully
-        // removed over USB — SD (the primary backend) handles that case.
         ch375b.dirEnumerate(path, [&](const char* name, uint32_t) {
             String child = String(path);
             if (!child.endsWith("/")) child += "/";
@@ -641,7 +589,6 @@ public:
         return ch375b.fileErase(path);
     }
 
-    // Recursively delete a repository tree (files + subdirectories).
     bool deleteTree(const char* path) {
         log_d("[FS] DELETE TREE: %s (primary=%s)", path, getPrimaryStorage());
 
@@ -729,7 +676,6 @@ public:
             log_w("[FS] rmdir failed on SD: %s", path);
         }
 
-        // CH375B doesn't have direct rmdir — skip for now
         if (usbOk) {
             log_w("[FS] rmdir: CH375B does not support rmdir for: %s", path);
         }
@@ -749,7 +695,6 @@ public:
         return false;
     }
 
-    // List directory entries.  Calls cb(name, isDir, size).
     void listDir(const char* dirPath,
                  std::function<void(const char*, bool, uint32_t)> cb) {
         log_d("[FS] LISTDIR: %s (primary=%s)", dirPath, getPrimaryStorage());
@@ -782,8 +727,6 @@ public:
             ch375b.dirEnumerate(dirPath,
                 [&](const char* name, uint32_t size) {
                     count++;
-                    // CH375B doesn't easily expose directory attribute
-                    // Assume files for now
                     cb(name, false, size);
                 });
             log_d("[FS] Found %d entries in USB: %s", count, dirPath);

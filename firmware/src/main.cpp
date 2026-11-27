@@ -1,7 +1,3 @@
-// Espresso Node — ESP32 firmware
-// Standalone (SD/USB) + auto-detected CH375B USB host + internal LittleFS fallback.
-// PlatformIO / Arduino framework for ESP32.
-
 #include "Arduino.h"
 #include "config.h"
 #include "ch375b.h"
@@ -9,7 +5,6 @@
 #include "protocol.h"
 #include "provision.h"
 
-// Global instances
 CH375B      ch375b;
 Storage     storage;
 NodeProtocol node;
@@ -18,14 +13,12 @@ Provision   provision;
 WebServer   gostServer(80);
 DNSServer   gostDNS;
 
-// ── Provisioning reset button ──────────────────────────
 #define PROVISION_RESET_BUTTON 0
 #define PROVISION_RESET_HOLD_MS 5000
 
 static uint32_t provisionButtonPressedAt = 0;
 static bool provisionResetTriggered = false;
 
-// ── Captive portal HTML ───────────────────────────────
 static const char PORTAL_HTML[] PROGMEM = R"rawliteral(
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Espresso Node Setup</title><style>
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;background:#1f1f1f;color:#d1cfc0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem}
@@ -98,7 +91,6 @@ function reset(){fetch('/api/reset',{method:'POST'}).then(()=>location.reload())
 )rawliteral";
 
 
-// ── WiFi ──────────────────────────────────────────────
 void wifiConnect() {
     if (WiFi.status() == WL_CONNECTED) return;
 
@@ -150,15 +142,13 @@ void checkProvisionResetButton() {
     }
 }
 
-// ── Storage health monitoring ────────────────────────
-#define STORAGE_HEALTH_CHECK_INTERVAL_MS 30000  // check every 30s
-#define STORAGE_REINIT_ON_FAILURE         true  // auto reinit if storage lost
+#define STORAGE_HEALTH_CHECK_INTERVAL_MS 30000
+#define STORAGE_REINIT_ON_FAILURE         true
 
 static uint32_t lastStorageHealthCheck = 0;
 
 void storageHealthCheck() {
     if (!storage.hasStorage()) {
-        // No storage at all — try to re-detect
         if (STORAGE_REINIT_ON_FAILURE) {
             log_w("[HEALTH] No storage available — attempting re-detection...");
             storage.reinit();
@@ -166,12 +156,10 @@ void storageHealthCheck() {
         return;
     }
 
-    // Storage exists — verify it's still responsive
     bool sdWasOk  = storage.sdOk;
     bool usbWasOk = storage.usbOk;
     bool flashWasOk = storage.flashOk;
 
-    // Quick liveness check: try to list root dir
     storage.listDir("/",
         [](const char* name, bool isDir, uint32_t size) {
             (void)name; (void)isDir; (void)size;
@@ -188,7 +176,6 @@ void storageHealthCheck() {
         log_e("[HEALTH] Internal Flash storage became unavailable — possible corruption");
     }
 
-    // If all backends died, try full re-init
     if (!storage.sdOk && !storage.usbOk && !storage.flashOk) {
         log_e("[HEALTH] All storage backends lost!");
         if (STORAGE_REINIT_ON_FAILURE) {
@@ -198,7 +185,6 @@ void storageHealthCheck() {
     }
 }
 
-// ── Setup ─────────────────────────────────────────────
 void setup() {
     Serial.begin(115200);
     delay(500);
@@ -267,7 +253,6 @@ void setup() {
     // 3. Storage (SD → USB → Flash priority with fallback)
     storage.begin();
 
-    // 4. Node protocol
     node.begin();
     node.connect();
 
@@ -275,12 +260,10 @@ void setup() {
     log_i("setup complete — entering loop");
 }
 
-// ── Loop ──────────────────────────────────────────────
 void loop() {
     checkProvisionResetButton();
 
     if (!provision.configured) {
-        // Fast blink while waiting for provisioning
         static uint32_t lastBlink = 0;
         static bool ledOn = false;
         if (millis() - lastBlink >= LED_PROVISION_BLINK_MS) {
@@ -295,17 +278,14 @@ void loop() {
 
     digitalWrite(LED_PROVISION_PIN, LOW);
 
-    // Reconnect WiFi if dropped
     if (WiFi.status() != WL_CONNECTED) {
         wifiConnect();
     }
 
-    // Periodic storage health check (hot-plug detection)
     if (millis() - lastStorageHealthCheck > STORAGE_HEALTH_CHECK_INTERVAL_MS) {
         lastStorageHealthCheck = millis();
         storageHealthCheck();
     }
 
-    // Run WebSocket + heartbeat
     node.loop();
 }

@@ -401,25 +401,26 @@ export class NodeRegistry {
     }
   }
 
-  async listGitFiles(owner: string, repo: string): Promise<string[]> {
-    const raw = await this.redis.get(`gitfiles:${owner}:${repo}`).catch(() => null);
-    if (typeof raw === "string" && raw !== "") {
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed as string[];
-      } catch {
-        /* ignore */
-      }
-    }
-    // Fallback: discover files via KEYS (handles stale/partial state where
-    // the file list is missing but individual files exist).
+  async setGitRepo(owner: string, repo: string, json: string): Promise<void> {
+    await this.redis.set(`gitrepo:${owner}:${repo}`, json, "EX", GIT_FILE_TTL_SEC);
+  }
+
+  async getGitRepo(owner: string, repo: string): Promise<Record<string, string> | null> {
+    const raw = await this.redis.get(`gitrepo:${owner}:${repo}`).catch(() => null);
+    if (typeof raw !== "string" || raw === "") return null;
     try {
-      const keys = await this.redis.keys(`gitfile:${owner}:${repo}:*`);
-      const prefix = `gitfile:${owner}:${repo}:`;
-      return keys.map((k) => k.slice(prefix.length)).filter((p) => p !== "");
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed as Record<string, string>;
     } catch {
-      return [];
+      /* ignore */
     }
+    return null;
+  }
+
+  async listGitFiles(owner: string, repo: string): Promise<string[]> {
+    const data = await this.getGitRepo(owner, repo);
+    if (data) return Object.keys(data);
+    return [];
   }
 
   async clearGitRepo(owner: string, repo: string): Promise<void> {

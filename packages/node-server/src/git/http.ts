@@ -22,7 +22,6 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
      if (identity !== "") {
        nodes = await registry.listByAccount(identity);
      } else {
-       // Allow unauthenticated clone/push by repo name across all nodes.
        nodes = await registry.list();
      }
      let foundOffline = false;
@@ -38,8 +37,6 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
        }
      }
      if (foundOffline) {
-       // Repo exists but its node is disconnected: surface that explicitly
-       // instead of a misleading "repository not found".
        return { id: offlineNodeId, offline: true };
      }
      ctx.json(404, { error: "repo not found on any online node" });
@@ -56,33 +53,26 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
       if (service !== "git-upload-pack" && service !== "git-receive-pack") {
         return ctx.status(400);
       }
-      // Prefer Strata (control plane store) for refs so clones work even when
-      // the node is busy or offline.
       let refs: string[] = [];
       let fromStrata = false;
       try {
-        const paths = await registry.listGitFiles(owner, repo);
-        if (paths.length > 0) {
+        const data = await registry.getGitRepo(owner, repo);
+        if (data) {
           fromStrata = true;
-          // Read each ref file to get its sha.
-          for (const p of paths) {
+          for (const p of Object.keys(data)) {
             if (p === "HEAD") continue;
             if (!p.startsWith("refs/")) continue;
-            const buf = await registry.getGitFile(owner, repo, p);
-            if (!buf) continue;
-            const sha = buf.toString("utf8").trim().split(/\s+/)[0];
-            // Skip unborn refs (zero sha) — advertising them makes the client
-            // send "want 0000..." which upload-pack rejects.
+            const b64p = data[p];
+            if (typeof b64p !== "string") continue;
+            const sha = Buffer.from(b64p, "base64").toString("utf8").trim().split(/\s+/)[0];
             if (sha && /^[0-9a-f]{40}$/i.test(sha) && !/^0+$/.test(sha)) refs.push(`${sha} ${p}`);
           }
-          // Ensure HEAD advertised.
-          const headBuf = await registry.getGitFile(owner, repo, "HEAD");
-          if (headBuf) {
-            const m = headBuf.toString("utf8").match(/ref:\s*(.+)/);
+          if (data["HEAD"]) {
+            const m = Buffer.from(data["HEAD"], "base64").toString("utf8").match(/ref:\s*(.+)/);
             if (m) {
               const target = m[1]!.trim();
-              const targetBuf = await registry.getGitFile(owner, repo, target);
-              const sha = targetBuf ? targetBuf.toString("utf8").trim().split(/\s+/)[0] : "";
+              const targetB64 = data[target];
+              const sha = targetB64 ? Buffer.from(targetB64, "base64").toString("utf8").trim().split(/\s+/)[0] : "";
               if (sha && /^[0-9a-f]{40}$/i.test(sha) && !/^0+$/.test(sha) && !refs.some((r) => r.includes(target))) {
                 refs.unshift(`${sha} ${target}`);
               }
@@ -116,19 +106,14 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
         ? "application/x-git-upload-pack-advertisement"
         : "application/x-git-receive-pack-advertisement";
 
-      // Build advertisement (protocol v1)
       let body = "";
       body += pktLine(`# service=${service}\n`);
       body += "0000";
-      // refs with capabilities on first line
       const caps = isUpload
         ? "multi_ack multi_ack_detailed thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not allow-tip-sha1-in-want allow-reachable-sha1-in-want no-progress include-tag"
         : "report-status delete-refs side-band-64k ofs-delta";
       let first = true;
-      // We don't have sha per ref from refs_list maybe; use zeros placeholder?
-      // For correctness, need sha. If refs are like "refs/heads/main" without sha, skip.
       for (const r of refs) {
-        // expect "sha refname" or just refname
         let sha = "0".repeat(40);
         let name = r;
         if (r.includes(" ")) {
@@ -141,7 +126,6 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
         first = false;
       }
       if (refs.length === 0) {
-        // advertise capabilities with zero sha for HEAD? minimal: send 0000 only
       }
       body += "0000";
 

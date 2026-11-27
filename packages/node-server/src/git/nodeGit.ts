@@ -12,7 +12,6 @@ function b64(s: string): Buffer {
 }
 
 async function syncFromNode(callNode: CallNode, nodeId: string, repo: string, localDir: string): Promise<void> {
-  // recursive
   async function walk(remotePath: string, localPath: string): Promise<void> {
     fs.mkdirSync(localPath, { recursive: true });
     const resp = await callNode(nodeId, "fs_list", { repo, path: remotePath });
@@ -24,7 +23,6 @@ async function syncFromNode(callNode: CallNode, nodeId: string, repo: string, lo
         await walk(rp, lp);
       } else {
         console.log("sync read", rp);
-        // read file chunked
         let offset = 0;
         const chunks: Buffer[] = [];
         while (true) {
@@ -43,21 +41,17 @@ async function syncFromNode(callNode: CallNode, nodeId: string, repo: string, lo
 }
 
 async function syncFromStrata(registry: NodeRegistry, owner: string, repo: string, localDir: string): Promise<void> {
-  const paths = await registry.listGitFiles(owner, repo);
-  for (const rel of paths) {
-    const buf = await registry.getGitFile(owner, repo, rel);
-    if (!buf) continue;
+  const data = await registry.getGitRepo(owner, repo);
+  if (!data) return;
+  for (const [rel, b64] of Object.entries(data)) {
     const full = path.join(localDir, rel);
     fs.mkdirSync(path.dirname(full), { recursive: true });
-    fs.writeFileSync(full, buf);
+    fs.writeFileSync(full, Buffer.from(b64, "base64"));
   }
 }
 
 async function syncToStrata(registry: NodeRegistry, owner: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
-  // Clear stale Strata data first (fire-and-forget).
-  void registry.clearGitRepo(owner, repo).catch(() => {});
-  // Collect all files into memory first (fast, no I/O to Strata).
-  const collected: { rel: string; b64: string }[] = [];
+  const collected: Record<string, string> = {};
   function walk(dir: string, prefix: string) {
     let entries: fs.Dirent[];
     try {
@@ -72,35 +66,20 @@ async function syncToStrata(registry: NodeRegistry, owner: string, repo: string,
         walk(full, rel);
       } else {
         const data = fs.readFileSync(full);
-        collected.push({ rel, b64: data.toString("base64") });
+        collected[rel] = data.toString("base64");
       }
     }
   }
   walk(localDir, "");
-  const paths = collected.map((c) => c.rel);
-  // Await Strata writes (in-memory data, no temp dir needed) with a 15 s
-  // budget so they complete within Vercel's lifetime.
-  const deadline = Date.now() + 15000;
+  // Single Strata write (one HTTP PUT) - much faster than per-file writes.
   try {
-    for (const c of collected) {
-      if (Date.now() > deadline) {
-        console.error("syncToStrata: deadline exceeded");
-        return;
-      }
-      await registry.setGitFile(owner, repo, c.rel, c.b64);
-    }
-    if (Date.now() <= deadline) {
-      await registry.setGitFileList(owner, repo, paths);
-    }
+    await registry.setGitRepo(owner, repo, JSON.stringify(collected));
   } catch (e) {
     console.error("syncToStrata failed:", e instanceof Error ? e.message : String(e));
   }
 }
 
 async function syncToNode(callNode: CallNode, nodeId: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
-  // Fire-and-forget: enqueue all writes without waiting for the node's
-  // response, so a slow node cannot stall the push. The node processes them
-  // over its next poll cycles.
   const skipDirs = new Set(["hooks", "info"]);
   const skipFiles = new Set(["description"]);
   let entries: fs.Dirent[];
@@ -136,14 +115,11 @@ async function syncToNode(callNode: CallNode, nodeId: string, repo: string, loca
 }
 
 function gitBin(): string {
-  // Prefer a bundled binary (shipped for serverless runtimes like Vercel that
-  // have no system git), then fall back to whatever is on PATH.
   try {
     const here = path.dirname(fileURLToPath(import.meta.url));
     const bundled = path.resolve(here, "..", "..", "bin", "git");
     const gitCore = path.resolve(here, "..", "..", "bin", "git-core");
     if (fs.existsSync(bundled)) {
-      // Make sure git can find its helper binaries (unpack-objects, ...).
       if (fs.existsSync(gitCore) && !process.env.GIT_EXEC_PATH) {
         process.env.GIT_EXEC_PATH = gitCore;
       }
@@ -189,7 +165,6 @@ export async function runNodeGitPack(
   try {
     fs.mkdirSync(repoDir, { recursive: true });
     if (service === "git-upload-pack") {
-      // Prefer Strata (control plane store) for fast, reliable clones.
       let fromStrata = false;
       if (registry && owner) {
         const paths = await registry.listGitFiles(owner, repo);
@@ -202,9 +177,7 @@ export async function runNodeGitPack(
         await syncFromNode(callNode, nodeId, repo, repoDir);
       }
     }
-    // ensure bare repo config
     if (!fs.existsSync(path.join(repoDir, "HEAD"))) {
-      // init bare if empty
       await runGit(["init", "--bare", repoDir], tmpRoot, Buffer.alloc(0)).catch(() => {});
     }
     const gitArgs = service === "git-upload-pack"

@@ -218,7 +218,7 @@ public:
         bool ok = storage.mkdir(dir.c_str());
         if (ok) {
             respondAck(reqId);
-            sendRepoList(String("fwr") + millis());  // refresh index
+            sendRepoList(String("fwr") + millis());
         } else {
             respondError(reqId, storage.sdOk ? "mkdir_failed_sd"
                           : (storage.usbOk ? "mkdir_failed_usb" : "mkdir_failed_no_storage"));
@@ -239,7 +239,7 @@ public:
         bool ok = storage.deleteTree(dir.c_str());
         if (ok) {
             respondAck(reqId);
-            sendRepoList(String("fwr") + millis());  // refresh index
+            sendRepoList(String("fwr") + millis());
         } else {
             respondError(reqId, "remove_failed");
         }
@@ -250,7 +250,7 @@ public:
         String path = (const char*)(cmd["path"] | "");
         uint32_t offset = (uint32_t)(cmd["offset"] | 0u);
         int len = cmd["len"] | 8192;
-        if (len <= 0 || len > 8192) len = 8192;  // single-chunk reads
+        if (len <= 0 || len > 8192) len = 8192;
 
         String fullPath = String(SD_MOUNT_POINT) + "/" + repo + "/" + path;
 
@@ -328,8 +328,6 @@ public:
         else respondError(reqId, "mkdir_failed");
     }
 
-    // Minimal git refs listing for bare repos: branches under refs/heads,
-    // tags under refs/tags. Empty when the repo is not a bare git dir.
     void handleRefsList(JsonDocument& cmd, const String& reqId) {
         String repo = (const char*)(cmd["repo"] | "");
         std::vector<String> branches, tags;
@@ -413,7 +411,6 @@ public:
         log_i("repo_list responded (%d repos)", int(repos.size()));
     }
 
-    // ── Respond mechanics ─────────────────────────────
 
     void respondAck(const String& reqId) {
         JsonDocument resp;
@@ -434,8 +431,6 @@ public:
         postRespond(resp);
     }
 
-    // Sends a fully-built response document. Skips when there is no req_id
-    // (unsolicited answers need one) and when unpaired.
     void postRespond(JsonDocument& resp) {
         String reqId = (const char*)(resp["req_id"] | "");
         if (token.isEmpty() || reqId.isEmpty()) return;
@@ -447,12 +442,6 @@ public:
     }
 
 private:
-    // ── Minimal HTTP/1.1 JSON POST client ─────────────
-    //
-    // TLS when serverPort == 443 (Vercel production), plain HTTP otherwise
-    // (LAN dev server). No certificate validation (setInsecure): trust is
-    // anchored at the application layer by the node's stored token and
-    // Ed25519-signed messages, mirroring the old plaintext WebSocket.
 
     bool postDoc(const String& path, JsonDocument& doc, JsonDocument& out, int& status) {
         String body = doc.as<String>();
@@ -484,9 +473,6 @@ private:
         raw = "";
         uint16_t port = provision.serverPort;
 
-        // TLS when provisioned port is 443 (Vercel production), plain HTTP
-        // otherwise (LAN dev). WiFiClientSecure derives from WiFiClient, so
-        // both share one interface here.
         WiFiClientSecure secure;
         WiFiClient plain;
         bool tl = (port == 443);
@@ -508,7 +494,7 @@ private:
         String req = "POST " + path + " HTTP/1.1\r\n";
         req += "Host: " + provision.serverHost + "\r\n";
         req += "Content-Type: application/json\r\n";
-        req += "Accept-Encoding: identity\r\n";  // gzip would break the JSON parse
+        req += "Accept-Encoding: identity\r\n";
         req += "Content-Length: " + String(body.length()) + "\r\n";
         req += "Connection: close\r\n\r\n";
         client.print(req);
@@ -528,7 +514,6 @@ private:
             return false;
         }
 
-        // "HTTP/1.1 200 OK"
         int sp1 = raw.indexOf(' ');
         int sp2 = raw.indexOf(' ', sp1 + 1);
         if (sp1 >= 0 && sp2 > sp1) status = raw.substring(sp1 + 1, sp2).toInt();
@@ -540,7 +525,6 @@ private:
         out.reserve(chunked.length());
         size_t i = 0;
         while (i < chunked.length()) {
-            // chunk size line: "<hex>[;ext]\r\n"
             int nl = chunked.indexOf("\r\n", i);
             if (nl < 0) break;
             int semi = chunked.indexOf(';', i);
@@ -550,12 +534,10 @@ private:
             i = nl + 2;
             if (size == 0) break;
             out += chunked.substring(i, min(i + (size_t)size, chunked.length()));
-            i += (size_t)size + 2;  // skip chunk + trailing CRLF
+            i += (size_t)size + 2;
         }
         return out;
     }
-
-    // ── Signing / hex helpers (unchanged from v3) ─────
 
     void signDoc(JsonDocument& doc, const char* action) {
         String nid = provision.nodeId;
