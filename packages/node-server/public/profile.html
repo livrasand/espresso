@@ -6,117 +6,247 @@
   <meta name="description" content="Your Espresso profile — avatar, bio, and node activity.">
   <title>Profile · Espresso</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/dashboard.css">
   <link rel="stylesheet" href="/profile.css">
   <script>
     document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';
   </script>
   <script src="/auth-client.js" defer></script>
+  <script src="/nav.js" defer></script>
+  <script src="/footer.js" defer></script>
   <script src="/profile.js" defer></script>
 </head>
 <body class="profile-page">
-  <header class="profile-topbar">
-    <a class="profile-brand" href="/" aria-label="Espresso home">
-      <img src="/openbin-mark.svg" alt="" class="profile-brand-mark">
-      <span class="profile-brand-name">Espresso</span>
-    </a>
-    <nav class="profile-topnav" aria-label="Primary">
-      <a class="profile-topnav-link" href="/dashboard">Repositories</a>
-      <a class="profile-topnav-link is-active" href="/profile">Profile</a>
-    </nav>
-    <div class="profile-account" id="profile-account"></div>
-  </header>
+  <div id="site-nav" data-account="profile" data-page="profile"></div>
 
   <main class="profile-main">
-    <p id="profile-status" class="profile-status" role="status"></p>
+    <div id="profile-status" class="profile-status" role="status" aria-live="polite"></div>
 
-    <button id="profile-create" type="button" class="button button-primary profile-create" hidden>
-      Create profile
-    </button>
+    <!-- Zero-state when account exists but profile is not yet created -->
+    <div id="profile-create-card" class="profile-hero-card profile-create-card" hidden>
+      <div class="profile-hero-badge">
+        <svg class="octicon" viewBox="0 0 16 16" width="32" height="32" fill="currentColor" aria-hidden="true">
+          <path d="M10.5 0a5.499 5.499 0 1 1-1.288 10.848l-.932.932a.749.749 0 0 1-.53.22H7v.75a.749.749 0 0 1-.22.53l-.5.5a.749.749 0 0 1-.53.22H5v.75a.749.749 0 0 1-.22.53l-.5.5a.749.749 0 0 1-.53.22h-2A1.75 1.75 0 0 1 0 14.25v-2c0-.199.079-.389.22-.53l4.932-4.932A5.5 5.5 0 0 1 10.5 0Z"></path>
+        </svg>
+      </div>
+      <h2 class="profile-hero-title">Create your Espresso Profile</h2>
+      <p class="profile-hero-desc">
+        Claim your public handle and showcase your paired ESP32 nodes, bare Git repositories, and verifiable activity.
+      </p>
+      <button id="profile-create" type="button" class="button button-primary profile-create-btn">
+        Create profile
+      </button>
+    </div>
+
+    <!-- Guest state when not authenticated -->
+    <div id="profile-guest" class="profile-hero-card profile-guest-card" hidden>
+      <div class="profile-hero-badge">
+        <svg class="octicon" viewBox="0 0 16 16" width="32" height="32" fill="currentColor" aria-hidden="true"><path d="M10.5 5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM0 13c0-1.545 1.06-2.88 2.57-3.264C3.89 9.38 5.6 9 8 9c2.4 0 4.11.38 5.43.736C14.94 10.12 16 11.455 16 13v1.25a.75.75 0 0 1-.75.75H.75a.75.75 0 0 1-.75-.75V13Z"></path></svg>
+      </div>
+      <h2 class="profile-hero-title">Espresso Developer Profiles</h2>
+      <p class="profile-hero-desc">
+        Explore profiles powered by ESP32 microcontrollers storing bare Git repos on hardware you control.
+      </p>
+      <div class="profile-hero-actions">
+        <a href="/login" class="button button-primary">Sign in to profile</a>
+        <a href="/docs" class="button button-secondary">API documentation</a>
+      </div>
+      <div class="profile-guest-features">
+        <div class="profile-guest-feat">
+          <strong>Hardware ownership</strong>
+          <span>Bare Git repositories reside directly on SD cards you own.</span>
+        </div>
+        <div class="profile-guest-feat">
+          <strong>Verifiable activity</strong>
+          <span>Synthesized heat map tracks your storage nodes' Git activity.</span>
+        </div>
+        <div class="profile-guest-feat">
+          <strong>No open ports</strong>
+          <span>Nodes dial out securely over encrypted HTTPS.</span>
+        </div>
+      </div>
+    </div>
 
     <div id="profile-layout" class="profile-layout" hidden>
-      <aside class="profile-rail">
-        <div class="profile-avatar-wrap">
-          <img id="profile-avatar" class="profile-avatar" alt="" hidden>
-          <div id="profile-avatar-fallback" class="profile-avatar-fallback" aria-hidden="true"></div>
+      <aside class="profile-rail" aria-label="User Profile">
+        <div class="profile-card profile-rail-card">
+          <div class="profile-avatar-wrap" id="profile-avatar-trigger" title="Profile avatar">
+            <img id="profile-avatar" class="profile-avatar" alt="" hidden>
+            <div id="profile-avatar-fallback" class="profile-avatar-fallback" aria-hidden="true"></div>
+            <div class="profile-avatar-overlay" aria-hidden="true">
+              <svg class="octicon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div class="profile-identity">
+            <h1 id="profile-display-name" class="profile-display-name">Anonymous</h1>
+            <div class="profile-username-row">
+              <p id="profile-username" class="profile-username"></p>
+              <button id="profile-copy-link" type="button" class="profile-copy-badge" title="Copy profile link" aria-label="Copy profile link">
+                <svg class="octicon profile-copy-icon" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                  <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path>
+                  <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>
+                </svg>
+                <span class="profile-copy-tooltip" id="profile-copy-tooltip">Share</span>
+              </button>
+            </div>
+          </div>
+
+          <p id="profile-bio" class="profile-bio"></p>
+
+          <div id="profile-links" class="profile-links"></div>
+
+          <div class="profile-stats-grid">
+            <a href="/dashboard" class="profile-stat-box" title="View repositories in dashboard">
+              <span class="profile-stat-icon">
+                <svg class="octicon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Z"></path></svg>
+              </span>
+              <span class="profile-stat-val" id="profile-repos">0</span>
+              <span class="profile-stat-lbl">Repositories</span>
+            </a>
+            <a href="/dashboard" class="profile-stat-box" title="View nodes in dashboard">
+              <span class="profile-stat-icon">
+                <svg class="octicon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M6.5.75V2h3V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75V5h1.25a.75.75 0 0 1 0 1.5H14v3h1.25a.75.75 0 0 1 0 1.5H14v1.25A1.75 1.75 0 0 1 12.25 14H11v1.25a.75.75 0 0 1-1.5 0V14h-3v1.25a.75.75 0 0 1-1.5 0V14H3.75A1.75 1.75 0 0 1 2 12.25V11H.75a.75.75 0 0 1 0-1.5H2v-3H.75a.75.75 0 0 1 0-1.5H2V3.75C2 2.784 2.784 2 3.75 2H5V.75a.75.75 0 0 1 1.5 0Zm5.75 11.75a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25ZM5.75 5h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-4.5A.75.75 0 0 1 5.75 5Zm.75 4.5h3v-3h-3Z"></path></svg>
+              </span>
+              <span class="profile-stat-val" id="profile-nodes">0</span>
+              <span class="profile-stat-lbl">Nodes</span>
+            </a>
+            <div class="profile-stat-box">
+              <span class="profile-stat-icon">
+                <svg class="octicon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-2a.25.25 0 0 0-.25-.25H2.75a.25.25 0 0 0-.25.25V6h11Z"></path></svg>
+              </span>
+              <span class="profile-stat-val" id="profile-joined">—</span>
+              <span class="profile-stat-lbl">Joined</span>
+            </div>
+          </div>
+
+          <button id="profile-edit-toggle" type="button" class="button button-secondary profile-edit-toggle" hidden>
+            <svg class="octicon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354l-1.086-1.086ZM11.189 6.25 9.75 4.81l-6.286 6.287a.25.25 0 0 0-.064.108l-.558 1.953 1.953-.558a.249.249 0 0 0 .108-.064l6.286-6.286Z"></path>
+            </svg>
+            Edit profile
+          </button>
         </div>
-        <h1 id="profile-display-name" class="profile-display-name">Anonymous</h1>
-        <p id="profile-username" class="profile-username"></p>
-        <p id="profile-bio" class="profile-bio"></p>
-        <div id="profile-links" class="profile-links"></div>
-        <dl class="profile-meta">
-          <div class="profile-meta-row">
-            <dt>Joined</dt>
-            <dd id="profile-joined">—</dd>
-          </div>
-          <div class="profile-meta-row">
-            <dt>Nodes</dt>
-            <dd id="profile-nodes">0</dd>
-          </div>
-          <div class="profile-meta-row">
-            <dt>Repositories</dt>
-            <dd id="profile-repos">0</dd>
-          </div>
-        </dl>
-        <button id="profile-edit-toggle" type="button" class="button button-secondary profile-edit-toggle" hidden>
-          Edit profile
-        </button>
       </aside>
 
       <section class="profile-body">
-        <div class="profile-section-head">
-          <h2 class="profile-section-title">Activity</h2>
-          <span id="profile-activity-total" class="profile-section-note"></span>
-        </div>
-        <div class="profile-heatmap" id="profile-heatmap" aria-label="Contribution activity">
-          <div id="profile-heatmap-grid" class="profile-heatmap-grid"></div>
-          <div class="profile-heatmap-legend">
-            <span>Less</span>
-            <span class="profile-heat-cell is-level-0"></span>
-            <span class="profile-heat-cell is-level-1"></span>
-            <span class="profile-heat-cell is-level-2"></span>
-            <span class="profile-heat-cell is-level-3"></span>
-            <span class="profile-heat-cell is-level-4"></span>
-            <span>More</span>
-          </div>
-          <p id="profile-heatmap-note" class="profile-heatmap-note"></p>
-        </div>
-
-        <div id="profile-editor" class="profile-editor" hidden>
+        <!-- Edit Profile Form (In-place Card) -->
+        <div id="profile-editor" class="profile-card profile-editor-card" hidden>
           <div class="profile-section-head">
-            <h2 class="profile-section-title">Edit profile</h2>
+            <div class="profile-section-head-title">
+              <svg class="octicon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354l-1.086-1.086ZM11.189 6.25 9.75 4.81l-6.286 6.287a.25.25 0 0 0-.064.108l-.558 1.953 1.953-.558a.249.249 0 0 0 .108-.064l6.286-6.286Z"></path>
+              </svg>
+              <h2 class="profile-section-title">Edit profile</h2>
+            </div>
+            <button id="profile-editor-close" type="button" class="profile-close-btn" title="Close editor" aria-label="Close editor">
+              <svg class="octicon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"></path></svg>
+            </button>
           </div>
+
           <form id="profile-form" class="profile-form">
+            <div class="profile-avatar-edit-layout">
+              <div class="profile-live-avatar-preview">
+                <img id="profile-avatar-live-preview" class="profile-avatar" alt="" hidden>
+                <div id="profile-avatar-live-fallback" class="profile-avatar-fallback">?</div>
+              </div>
+              <label class="profile-field profile-field-avatar">
+                <span class="profile-field-label">Avatar URL</span>
+                <input id="profile-input-avatar" type="url" placeholder="https://…">
+                <small class="profile-field-hint">Paste an image link from catbox.moe, imgur, GitHub or any HTTPS host.</small>
+              </label>
+            </div>
+
             <label class="profile-field">
               <span class="profile-field-label">Display name</span>
-              <input id="profile-input-display" type="text" maxlength="64" autocomplete="name">
+              <input id="profile-input-display" type="text" maxlength="64" autocomplete="name" placeholder="Display name">
             </label>
+
             <label class="profile-field">
-              <span class="profile-field-label">Bio</span>
-              <textarea id="profile-input-bio" maxlength="280" rows="3"></textarea>
+              <div class="profile-field-header">
+                <span class="profile-field-label">Bio</span>
+                <span id="profile-bio-count" class="profile-char-count">0 / 280</span>
+              </div>
+              <textarea id="profile-input-bio" maxlength="280" rows="3" placeholder="A short bio about you, your nodes, or projects..."></textarea>
             </label>
-            <label class="profile-field">
-              <span class="profile-field-label">Avatar URL</span>
-              <input id="profile-input-avatar" type="url" placeholder="https://…">
-              <small class="profile-field-hint">Tip: upload an image to catbox.moe (or any host) and paste the URL.</small>
-            </label>
+
             <label class="profile-field">
               <span class="profile-field-label">Links (comma-separated URLs)</span>
               <input id="profile-input-links" type="text" placeholder="https://github.com/you, https://yoursite.com">
+              <small class="profile-field-hint">Separated by commas. Social links will display with their platform icons.</small>
             </label>
+
             <div class="profile-form-actions">
-              <button type="submit" class="button" id="profile-save">Save</button>
+              <button type="submit" class="button button-primary" id="profile-save">Save profile</button>
               <button type="button" class="button button-secondary" id="profile-cancel">Cancel</button>
             </div>
           </form>
         </div>
 
-        <p id="profile-guest" class="profile-guest" hidden>
-          <a href="/login">Sign in</a> to create your Espresso profile.
-        </p>
+        <!-- Activity Heatmap Card -->
+        <div class="profile-card profile-activity-card">
+          <div class="profile-section-head">
+            <div class="profile-section-head-title">
+              <svg class="octicon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                <path d="M1.5 1.75V13.5h13.75a.75.75 0 0 1 0 1.5H.75a.75.75 0 0 1-.75-.75V1.75a.75.75 0 0 1 1.5 0Zm14.28 2.53-5.25 5.25a.75.75 0 0 1-1.06 0L7 7.06 3.28 10.78a.751.751 0 0 1-1.06-1.06L6.47 5.47a.75.75 0 0 1 1.06 0L10 7.94l4.72-4.72a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734Z"></path>
+              </svg>
+              <h2 class="profile-section-title">Activity</h2>
+            </div>
+            <span id="profile-activity-total" class="profile-section-note"></span>
+          </div>
+
+          <div class="profile-heatmap" id="profile-heatmap" aria-label="Contribution activity">
+            <div class="profile-heatmap-container">
+              <div class="profile-heatmap-weekdays" aria-hidden="true">
+                <span>Mon</span>
+                <span>Wed</span>
+                <span>Fri</span>
+              </div>
+              <div class="profile-heatmap-scroll">
+                <div id="profile-heatmap-grid" class="profile-heatmap-grid"></div>
+              </div>
+            </div>
+
+            <div class="profile-heatmap-foot">
+              <div class="profile-heatmap-legend">
+                <span>Less</span>
+                <span class="profile-heat-cell is-level-0" title="0 contributions"></span>
+                <span class="profile-heat-cell is-level-1" title="1-2 contributions"></span>
+                <span class="profile-heat-cell is-level-2" title="3-5 contributions"></span>
+                <span class="profile-heat-cell is-level-3" title="6-8 contributions"></span>
+                <span class="profile-heat-cell is-level-4" title="9+ contributions"></span>
+                <span>More</span>
+              </div>
+              <p id="profile-heatmap-note" class="profile-heatmap-note"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hardware & Node Overview Card -->
+        <div class="profile-card profile-nodes-overview">
+          <div class="profile-section-head">
+            <div class="profile-section-head-title">
+              <svg class="octicon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                <path d="M6.5.75V2h3V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75V5h1.25a.75.75 0 0 1 0 1.5H14v3h1.25a.75.75 0 0 1 0 1.5H14v1.25A1.75 1.75 0 0 1 12.25 14H11v1.25a.75.75 0 0 1-1.5 0V14h-3v1.25a.75.75 0 0 1-1.5 0V14H3.75A1.75 1.75 0 0 1 2 12.25V11H.75a.75.75 0 0 1 0-1.5H2v-3H.75a.75.75 0 0 1 0-1.5H2V3.75C2 2.784 2.784 2 3.75 2H5V.75a.75.75 0 0 1 1.5 0Zm5.75 11.75a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25ZM5.75 5h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-4.5A.75.75 0 0 1 5.75 5Zm.75 4.5h3v-3h-3Z"></path>
+              </svg>
+              <h2 class="profile-section-title">Hardware Forge Network</h2>
+            </div>
+            <a href="/dashboard" class="profile-hub-link">Open Dashboard &rarr;</a>
+          </div>
+          <p class="profile-overview-text">
+            Espresso repositories live on physical micro-SD cards hosted by ESP32 nodes. Nodes dial out via HTTPS without exposing incoming network ports, keeping code sovereign and secure.
+          </p>
+        </div>
       </section>
     </div>
   </main>
 
+  <div id="site-footer" data-page="profile"></div>
 </body>
 </html>

@@ -6,37 +6,20 @@
   <meta name="description" content="Browse the repositories stored on your Espresso nodes.">
   <title>Espresso</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/dashboard.css">
   <script>
     document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';
   </script>
   <script src="/auth-client.js" defer></script>
+  <script src="/nav.js" defer></script>
   <script src="/dashboard.js" defer></script>
 </head>
 <body class="dash-page">
-  <header class="dash-topbar">
-    <a class="dash-brand" href="/" aria-label="Espresso home">
-      <img src="/openbin-mark.svg" alt="" class="dash-brand-mark">
-      <span class="dash-brand-name">Espresso</span>
-    </a>
-    <nav class="dash-topnav" aria-label="Primary">
-      <a class="dash-topnav-link is-active" href="/dashboard">Repositories</a>
-      <a class="dash-topnav-link" href="/profile">Profile</a>
-      <a class="dash-topnav-link" href="/docs">API docs</a>
-    </nav>
-    <div class="dash-account-wrap" id="dash-account-wrap">
-      <button type="button" id="dash-account-trigger" class="dash-account-trigger" aria-haspopup="true" aria-expanded="false">
-        <span id="dash-account-value">—</span>
-        <span class="dash-account-arrow">▾</span>
-      </button>
-      <div id="dash-account-menu" class="dash-account-menu" hidden>
-        <button id="dash-token-open" type="button" class="dash-account-item" title="Generate or copy a session token">Token</button>
-        <button id="dash-create-repo" type="button" class="dash-account-item" title="Create a new repository on the selected node">New repository</button>
-        <a href="/login" data-action="logout" class="dash-account-item">Sign out</a>
-      </div>
-    </div>
-  </header>
+  <div id="site-nav" data-account="dashboard" data-page="dashboard"></div>
 
   <div class="dash-shell">
     <aside class="dash-sidebar" aria-label="Your nodes">
@@ -44,11 +27,11 @@
         <span class="dash-sidebar-title">Nodes</span>
         <div class="dash-sidebar-actions">
           <button id="dash-pair-open" type="button" class="dash-icon-btn" title="Pair a node">
-            <span aria-hidden="true">+</span>
+            <svg class="octicon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"></path></svg>
             <span class="dash-visually-hidden">Pair a node</span>
           </button>
           <button id="dash-refresh" type="button" class="dash-icon-btn" title="Refresh">
-            <span aria-hidden="true">&#8635;</span>
+            <svg class="octicon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"></path></svg>
             <span class="dash-visually-hidden">Refresh</span>
           </button>
         </div>
@@ -60,7 +43,7 @@
     <div id="dash-pair-modal" class="dash-modal" hidden>
       <div class="dash-modal-backdrop" data-close="1"></div>
       <div class="dash-modal-card" role="dialog" aria-modal="true" aria-label="Pair a node">
-        <button id="dash-pair-close" type="button" class="dash-modal-close" title="Close">×</button>
+        <button id="dash-pair-close" type="button" class="dash-modal-close" title="Close"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"></path></svg></button>
         <h2 class="dash-pair-title">Pair a node</h2>
         <form id="dash-pair-form" class="dash-pair-form">
           <label class="dash-pair-label" for="dash-pair-code">Pairing code</label>
@@ -76,7 +59,7 @@
     <div id="dash-token-modal" class="dash-modal" hidden>
       <div class="dash-modal-backdrop" data-token-close="1"></div>
       <div class="dash-modal-card" role="dialog" aria-modal="true" aria-label="Session token">
-        <button id="dash-token-close" type="button" class="dash-modal-close" title="Close">×</button>
+        <button id="dash-token-close" type="button" class="dash-modal-close" title="Close"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"></path></svg></button>
         <h2 class="dash-pair-title">Session token</h2>
         <p class="dash-token-help">
           HMAC session token, valid for 30&nbsp;days. Send it in <strong>c</strong>url or <strong>git</strong> with the
@@ -100,7 +83,7 @@
     <div id="dash-create-repo-modal" class="dash-modal" hidden>
       <div class="dash-modal-backdrop" data-create-close="1"></div>
       <div class="dash-modal-card" role="dialog" aria-modal="true" aria-label="Create repository">
-        <button id="dash-create-repo-close" type="button" class="dash-modal-close" title="Close">×</button>
+        <button id="dash-create-repo-close" type="button" class="dash-modal-close" title="Close"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"></path></svg></button>
         <h2 class="dash-pair-title">Create repository</h2>
         <form id="dash-create-repo-form" class="dash-pair-form">
           <label class="dash-pair-label" for="dash-create-repo-node">Node</label>

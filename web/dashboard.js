@@ -214,7 +214,7 @@
     });
   }
 
-  function renderRefs(detail, branches, tags, commits, repo) {
+  function renderRefs(detail, branches, tags, commits, repo, error) {
     const chip = (x) => '<span class="dash-chip">' + esc(x) + '</span>';
     const group = (label, items) =>
       '<div class="dash-repo-detail-group">' +
@@ -222,20 +222,32 @@
         (items.length ? items.map(chip).join('') : '<span class="dash-chip">none</span>') +
       '</div>';
     const ownerSlug = state.username || Auth.session().account || '';
-    const cloneUrl = 'git clone ' + location.protocol + '//' + location.host + '/' + encodeURIComponent(ownerSlug) + '/' + encodeURIComponent(repo || '') + '.git';
+    const protoHost = location.protocol + '//' + location.host;
+    const cloneUrl = 'git clone ' + protoHost + '/' + encodeURIComponent(ownerSlug) + '/' + encodeURIComponent(repo || '') + '.git';
+    const apiBase = '/api/gg/repos/' + encodeURIComponent(ownerSlug) + '/' + encodeURIComponent(repo || '');
+    const apiRow = (label, url) =>
+      '<div class="dash-repo-detail-group">' +
+        '<span class="dash-repo-detail-label">' + esc(label) + '</span>' +
+        '<span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+          '<code class="dash-repo-code" style="margin:0;">' + esc(url) + '</code>' +
+          '<button type="button" class="dash-copy-btn" style="position:static;" data-copy="' + esc(url) + '">Copy</button>' +
+        '</span>' +
+      '</div>';
+    const refsNote = error
+      ? '<div class="dash-repo-detail-group"><span class="dash-chip">refs unavailable</span></div>'
+      : '';
     detail.innerHTML =
+      refsNote +
       group('Branches', branches) +
       group('Tags', tags) +
       group('Commits', commits) +
-      '<div class="dash-repo-detail-group">' +
-        '<span class="dash-repo-detail-label">Clone</span>' +
-        '<span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-          '<code class="dash-repo-code" style="margin:0;">' + esc(cloneUrl) + '</code>' +
-          '<button type="button" class="dash-copy-btn" style="position:static;" data-clone="' + esc(cloneUrl) + '">Copy</button>' +
-        '</span>' +
-      '</div>';
-    const cb = detail.querySelector('[data-clone]');
-    if (cb) cb.addEventListener('click', () => copyText(cb, cb.getAttribute('data-clone')));
+      apiRow('Clone', cloneUrl) +
+      apiRow('API · refs', apiBase + '/refs') +
+      apiRow('API · tree', apiBase + '/tree') +
+      apiRow('API · raw', apiBase + '/raw?path=README.md');
+    detail.querySelectorAll('[data-copy]').forEach((cb) =>
+      cb.addEventListener('click', () => copyText(cb, cb.getAttribute('data-copy'))),
+    );
     detail.hidden = false;
   }
 
@@ -255,6 +267,7 @@
           Array.isArray(r && r.tags) ? r.tags : [],
           Array.isArray(r && r.commits) ? r.commits : [],
           repo,
+          null,
         );
         return;
       } catch (e) {
@@ -263,7 +276,10 @@
       }
     }
     if (state.selected !== nodeId || !detail.isConnected) return;
-    detail.innerHTML = '<span class="dash-chip">unavailable</span>';
+    // Refs could not be fetched (node busy/offline or storage degraded), but
+    // the repo still exists: always show how to access it instead of a dead
+    // "unavailable" chip.
+    renderRefs(detail, [], [], [], repo, lastErr);
   }
 
   async function selectNode(id) {

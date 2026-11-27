@@ -50,10 +50,12 @@ export function config(): Config {
     strata: {
       url: env("STRATA_URL"),
       token: env("STRATA_TOKEN"),
-      // Cap each Strata round trip at the Vercel serverless limit (60 s)
-      // so a hung upstream (Strata → Codeberg) fails fast instead of being
-      // killed by maxDuration.
-      timeoutMs: Math.max(1000, Number(env("STRATA_TIMEOUT_MS") ?? "60000") || 60000),
+      // Cap each Strata round trip well under Vercel's 60 s maxDuration so a
+      // hung upstream (Strata → Codeberg) fails fast and the function returns
+      // before the platform kills it. A single /node/poll chains several
+      // sequential Strata ops, so the per-op budget must be a fraction of 60 s;
+      // 20 s matches Codeberg's own per-request timeout.
+      timeoutMs: Math.max(1000, Number(env("STRATA_TIMEOUT_MS") ?? "20000") || 20000),
     },
     secret: loadSecret(),
     apiKey: env("ESPRESSO_API_KEY") ?? "",

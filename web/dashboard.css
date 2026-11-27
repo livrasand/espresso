@@ -5,7 +5,7 @@
   min-height: 100dvh;
   background: var(--color-background);
   color: var(--color-main);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -90,6 +90,7 @@
   color: inherit;
   padding: 0.3rem 0.6rem;
   font: inherit;
+  text-decoration: none;
   cursor: pointer;
   border-radius: 0;
 }
@@ -103,6 +104,18 @@
 .dash-account-arrow {
   font-size: 0.6rem;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+.dash-account-arrow .octicon {
+  width: 12px;
+  height: 12px;
+}
+
+.octicon {
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .dash-account-menu {
@@ -121,7 +134,8 @@
 .dash-account-menu[hidden] { display: none; }
 
 .dash-account-item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   padding: 0.5rem 0.75rem;
   color: inherit;
@@ -131,6 +145,12 @@
   border: none;
   cursor: pointer;
   font: inherit;
+}
+
+.dash-account-item .octicon {
+  width: 14px;
+  height: 14px;
+  margin-right: 0.5rem;
 }
 
 .dash-account-item:hover,
@@ -486,6 +506,9 @@
   position: absolute;
   top: 0.5rem;
   right: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   background: none;
   color: var(--color-muted, #888);
@@ -502,24 +525,24 @@
 }
 
 .dash-copy-btn {
-  margin-left: .5rem;
+  margin: 0 .4rem 0 0;
   background: #f76f53;
   color: #1f1f1f;
   border: 1px solid #f76f53;
-  padding: .2rem .6rem;
-  font: 600 .75rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: .12rem .45rem;
+  font: 600 .7rem ui-monospace, SFMono-Regular, Menlo, monospace;
   cursor: pointer;
   border-radius: 0;
 }
 .dash-copy-btn:hover { background: #db573e; border-color: #db573e; }
 
 .dash-delete-btn {
-  margin-left: .5rem;
+  margin: 0 .4rem 0 0;
   background: #1f1f1f;
   color: #f76f53;
   border: 1px solid #f76f53;
-  padding: .2rem .6rem;
-  font: 600 .75rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: .12rem .45rem;
+  font: 600 .7rem ui-monospace, SFMono-Regular, Menlo, monospace;
   cursor: pointer;
   border-radius: 0;
 }
@@ -600,5 +623,5 @@
 
 .dash-node-id { display:block; font-size:0.7rem; color:#888; margin-top:2px; }
 .dash-copy-sm { font-size:0.65rem; padding:0 4px; margin-left:4px; }
-.dash-delete-node { font-size:0.65rem; padding:0 6px; margin-left:4px; background:#444; color:#eee;border:1px solid #666;border-radius:2px;cursor:pointer; }
+.dash-delete-node { font-size: .6rem; padding: 0 4px; margin-left: 6px; background:#444; color:#eee;border:1px solid #666;border-radius:2px;cursor:pointer; }
 .dash-delete-node:hover { background:#f76f53; color:#1f1f1f; border-color:#f76f53; }
