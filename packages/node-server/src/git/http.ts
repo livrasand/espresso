@@ -73,8 +73,9 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
             const buf = await registry.getGitFile(owner, repo, p);
             if (!buf) continue;
             const sha = buf.toString("utf8").trim().split(/\s+/)[0];
-            if (sha && sha.length >= 7) refs.push(`${sha} ${p}`);
-            else refs.push(p);
+            // Skip unborn refs (zero sha) — advertising them makes the client
+            // send "want 0000..." which upload-pack rejects.
+            if (sha && /^[0-9a-f]{40}$/i.test(sha) && !/^0+$/.test(sha)) refs.push(`${sha} ${p}`);
           }
           // Ensure HEAD advertised.
           const headBuf = await registry.getGitFile(owner, repo, "HEAD");
@@ -83,8 +84,8 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
             if (m) {
               const target = m[1]!.trim();
               const targetBuf = await registry.getGitFile(owner, repo, target);
-              const sha = targetBuf ? targetBuf.toString("utf8").trim().split(/\s+/)[0] : "0".repeat(40);
-              if (sha && sha.length >= 7 && !refs.some((r) => r.includes(target))) {
+              const sha = targetBuf ? targetBuf.toString("utf8").trim().split(/\s+/)[0] : "";
+              if (sha && /^[0-9a-f]{40}$/i.test(sha) && !/^0+$/.test(sha) && !refs.some((r) => r.includes(target))) {
                 refs.unshift(`${sha} ${target}`);
               }
             }
