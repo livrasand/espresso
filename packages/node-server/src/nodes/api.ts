@@ -52,9 +52,6 @@ function str(v: unknown): string {
 export function makeApiHandlers(deps: ApiDeps) {
   const { registry, callNode } = deps;
 
-  /** getLiveNode: resolves owner + node authorization for /api/nodes ops.
-   * Owner is the authenticated account session; when sessions are off
-   * (trusted-network / dev mode) the management API key substitutes. */
   async function getLiveNode(ctx: HttpCtx, idParam: string): Promise<{ id: string; owner: string } | null> {
     const id = idParam.toUpperCase();
     let owner = ctx.identity;
@@ -93,7 +90,6 @@ export function makeApiHandlers(deps: ApiDeps) {
   }
 
   return {
-    /** POST /api/nodes/pair {"code"} — completes pairing from the web UI. */
     async pair(ctx: HttpCtx): Promise<void> {
       const body = (await ctx.body()) as JsonBody | null;
       const code = str(body?.code);
@@ -106,7 +102,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, { node_id: nodeId });
     },
 
-    /** GET /api/nodes — dashboard listing. */
     async list(ctx: HttpCtx): Promise<void> {
       let identity = ctx.identity;
       if (identity === "") identity = ctx.header("x-espresso-key") ?? "";
@@ -116,7 +111,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, { nodes: [] });
     },
 
-    /** GET /api/nodes/:id/repos */
     async repos(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
@@ -124,7 +118,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, { repositories });
     },
 
-    /** POST /api/nodes/:id/repos — create with optional README/.gitignore/LICENSE. */
     async reposCreateFull(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
@@ -157,7 +150,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, { ok: true, repo_id: name });
     },
 
-    /** POST /api/nodes/:id/repo/create — bare repo only. */
     async repoCreate(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
@@ -170,7 +162,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, { ok: true });
     },
 
-    /** POST /api/nodes/:id/repo/delete */
     async repoDelete(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
@@ -183,7 +174,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, { ok: true });
     },
 
-    /** GET /api/nodes/:id/refs/:repo */
     async refs(ctx: HttpCtx, idParam: string, repo: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
@@ -193,7 +183,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, resp);
     },
 
-    /** POST /api/nodes/:id/fs/read */
     async fsRead(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
@@ -211,7 +200,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, resp);
     },
 
-    /** POST /api/nodes/:id/fs/write */
     async fsWrite(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
@@ -229,7 +217,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, resp);
     },
 
-    /** POST /api/nodes/:id/fs/list */
     async fsList(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
@@ -242,7 +229,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, resp);
     },
 
-    /** POST /api/nodes/:id/cmd/ping (generic admin action proxy) */
     async cmd(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
@@ -257,7 +243,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(200, resp);
     },
 
-    /** DELETE /api/nodes/:id — unpair and wipe the node from the control plane. */
     async deleteNode(ctx: HttpCtx, idParam: string): Promise<void> {
       const id = idParam.toUpperCase();
       let owner = ctx.identity;
@@ -278,8 +263,6 @@ export function makeApiHandlers(deps: ApiDeps) {
 export function makeGGHandlers(deps: ApiDeps) {
   const { registry, callNode } = deps;
 
-  /** Short-lived per-instance memo; avoids repeating identical node RPCs and
-   * lookups when a page fires several requests for the same repo at once. */
   const memo = new Map<string, { at: number; value: Promise<unknown> }>();
   function memoized<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
     const hit = memo.get(key);
@@ -293,7 +276,6 @@ export function makeGGHandlers(deps: ApiDeps) {
     return value;
   }
 
-  /** Accounts that may own `account` (a raw account or a username). */
   function candidateAccounts(account: string): Promise<string[]> {
     const profiles = deps.profiles;
     if (!profiles) return Promise.resolve([account]);
@@ -432,7 +414,6 @@ export function makeGGHandlers(deps: ApiDeps) {
       if (bt === null) return;
       ctx.json(200, { tags: bt.tags });
     },
-    /** Branches + tags + commits in a single request (used by the dashboard). */
     async refs(ctx: HttpCtx, owner: string, repo: string): Promise<void> {
       repo = decodeURIComponent(repo);
       owner = decodeURIComponent(owner);

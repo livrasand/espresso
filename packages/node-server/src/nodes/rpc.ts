@@ -10,10 +10,6 @@ export class RpcError extends Error {
 }
 
 export function makeRpc(registry: NodeRegistry, opts: { rpcTimeoutMs: number; maxWaitMs: number }) {
-  /**
-   * Performs a synchronous command/response round trip against the node's
-   * polling loop. Callers must check `registry.isOnline(id)` first.
-   */
   return async function callNode(id: string, action: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
     const wait = Math.min(opts.rpcTimeoutMs, opts.maxWaitMs);
     const reqId = crypto.randomUUID();

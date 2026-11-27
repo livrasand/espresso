@@ -48,8 +48,6 @@ textarea {
   flex-shrink: 0;
 }
 
-/* Selects: quita la apariencia nativa del navegador (que pinta border-radius
-   del sistema) y dibuja una flecha propia del lenguaje visual de openbin */
 select {
   appearance: none;
   -webkit-appearance: none;
@@ -120,8 +118,6 @@ select {
   line-height: inherit;
 }
 
-/* JFORM editor (CreateForm): the inner <pre> from Shiki should wrap
-   long lines like the textarea, without a horizontal scrollbar */
 .jform-editor .shiki,
 .jform-editor .shiki code,
 .jform-editor .shiki-fallback {
@@ -129,7 +125,6 @@ select {
   overflow-wrap: break-word;
 }
 
-/* Markdown content inside blog posts */
 .markdown {
   line-height: 1.6;
 }
@@ -182,7 +177,6 @@ select {
   color: var(--color-muted);
 }
 
-/* Landing page */
 .landing-page {
   display: flex;
   flex-direction: column;
@@ -334,7 +328,6 @@ select {
   background: color-mix(in srgb, #f76f53 45%, transparent);
 }
 
-/* Feature grid */
 .landing-features {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

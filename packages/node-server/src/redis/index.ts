@@ -34,21 +34,18 @@ export class Redis {
   hset(key: string, field: string, value: string): Promise<number> {
     return this.exec(["HSET", key, field, value]).then((r) => (typeof r === "number" ? r : 0));
   }
-  /** Sets multiple hash fields in a single read-modify-write round trip. */
   hmset(key: string, fields: Record<string, string>): Promise<number> {
     const pairs: (string | number)[] = [];
     for (const [f, v] of Object.entries(fields)) pairs.push(f, v);
     if (pairs.length === 0) return Promise.resolve(0);
     return this.exec(["HMSET", key, ...pairs]).then((r) => (typeof r === "number" ? r : 0));
   }
-  /** HMSET + EXPIRE in one round trip. */
   hmsetEx(key: string, ttlSec: number, fields: Record<string, string>): Promise<number> {
     const pairs: (string | number)[] = [];
     for (const [f, v] of Object.entries(fields)) pairs.push(f, v);
     if (pairs.length === 0) return Promise.resolve(0);
     return this.exec(["HMSETEX", key, ttlSec, ...pairs]).then((r) => (typeof r === "number" ? r : 0));
   }
-  /** Sliding-window hit: records `member` at `nowMs` and returns the live count. */
   zwindow(key: string, nowMs: number, member: string, windowMs: number): Promise<number> {
     return this.exec(["ZWINDOW", key, nowMs, member, windowMs]).then((r) => (typeof r === "number" ? r : 0));
   }
@@ -70,7 +67,6 @@ export class Redis {
   rpush(key: string, ...values: string[]): Promise<number> {
     return this.exec(["RPUSH", key, ...values]).then((r) => (typeof r === "number" ? r : 0));
   }
-  /** Removes up to `count` items and returns them. */
   lpopAll(key: string, count: number): Promise<string[]> {
     return this.exec(["LPOP", key, count]).then((r) => {
       if (r === null) return [];

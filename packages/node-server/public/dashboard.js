@@ -1,14 +1,3 @@
-/* dashboard.js — repository browser for the Espresso control plane.
- *
- * Lists the paired nodes for the signed-in account and browses the
- * repositories on each node:
- *   GET /api/nodes                          → { nodes: [...] }
- *   GET /api/nodes/:id/repos                → { repositories: [{name,size}] }
- *   GET /api/gg/repos/:owner/:repo/branches → { branches: [...] }
- *   GET /api/gg/repos/:owner/:repo/tags     → { tags: [...] }
- * All management calls carry the X-ZKP-Token session header via
- * window.EspressoAuth. Anonymous listing works in trusted-network mode.
- */
 'use strict';
 
 (function () {

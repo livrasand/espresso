@@ -54,7 +54,6 @@ export class ProfileStore {
     return raw.trim().toLowerCase();
   }
 
-  /** Validates and canonicalizes a username or throws ProfileValidationError. */
   validateUsername(raw: string): string {
     const u = this.normalizeUsername(raw);
     if (u.length < USERNAME_MIN || u.length > USERNAME_MAX) {
@@ -88,12 +87,10 @@ export class ProfileStore {
     }
   }
 
-  /** Reads the profile for an account; null when unset. */
   async get(account: string): Promise<Profile | null> {
     return this.readProfile(this.hash(account));
   }
 
-  /** Resolves a username to its profile; null when unknown. */
   async getByUsername(username: string): Promise<Profile | null> {
     const u = this.normalizeUsername(username);
     const owner = await this.redis.get(`names:${u}`);
@@ -101,13 +98,11 @@ export class ProfileStore {
     return this.readProfile(owner);
   }
 
-  /** Resolves a username to the owning account hash; null when unknown. */
   async accountHashForUsername(username: string): Promise<string | null> {
     const u = this.normalizeUsername(username);
     return this.redis.get(`names:${u}`);
   }
 
-  /** True when a username is not yet claimed by any account. */
   async usernameAvailable(username: string, account: string): Promise<boolean> {
     const u = this.normalizeUsername(username);
     const owner = await this.redis.get(`names:${u}`);
@@ -115,11 +110,6 @@ export class ProfileStore {
     return owner === this.hash(account);
   }
 
-  /**
-   * Creates or updates the profile for an account. Username uniqueness is
-   * enforced through a `setNx` index write; a changed username releases the
-   * previous claim. Returns the stored profile.
-   */
   async upsert(account: string, input: ProfileInput): Promise<Profile> {
     const username = this.validateUsername(input.username ?? "");
     const display_name = (input.display_name ?? "").trim().slice(0, DISPLAY_NAME_MAX);
@@ -150,7 +140,6 @@ function normalizeLinks(links: string): string {
   return links.trim().slice(0, 500);
 }
 
-/** Accepts image data URLs or http(s) image URLs; else empty string. */
 function normalizeAvatar(avatar: string): string {
   if (avatar === "") return "";
   if (/^https?:\/\//i.test(avatar)) {

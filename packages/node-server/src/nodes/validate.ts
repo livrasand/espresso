@@ -19,7 +19,6 @@ export function isSafeNodeID(id: string): boolean {
   return id.length >= 8 && id.length <= 32 && /^[0-9A-F]+$/.test(id);
 }
 
-/** Guards against control characters in device-reported names. */
 export function validNodeName(name: string): boolean {
   if (name === "" || name.length > 64) return false;
   for (const ch of name) {

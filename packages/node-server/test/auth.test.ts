@@ -56,7 +56,6 @@ describe("rate limiter", () => {
   });
 });
 
-/** vitest vi.useFakeTimers alternative-free stub of Date.now. */
 function vi_stubNow(ts: number): void {
   Date.now = () => ts;
 }

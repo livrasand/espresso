@@ -1,13 +1,3 @@
-/* footer.js — shared status bar footer.
- *
- * Pages include a placeholder and let this script render the footer so the
- * markup lives in one place:
- *   <div id="site-footer" data-page="home"></div>
- *   <script src="/footer.js" defer></script>
- *
- * Shows the current page label and the shared session state (guest vs signed
- * in) read from window.EspressoAuth.
- */
 (function () {
   'use strict';
 

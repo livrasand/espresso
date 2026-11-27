@@ -22,7 +22,6 @@
   border: 0;
 }
 
-/* Top bar */
 .dash-topbar {
   display: flex;
   flex-shrink: 0;
@@ -159,7 +158,6 @@
   color: #f76f53;
 }
 
-/* Shell */
 .dash-shell {
   display: flex;
   flex: 1;
@@ -272,7 +270,6 @@
   background: #8a8a8a;
 }
 
-/* Main */
 .dash-main {
   flex: 1;
   min-width: 0;
@@ -396,7 +393,6 @@
   font-size: 0.8125rem;
 }
 
-/* Footer */
 .dash-footer {
   flex-shrink: 0;
   border-top: 1px solid var(--color-surface-light);
@@ -422,7 +418,6 @@
   }
 }
 
-/* Pair a node section */
 .dash-pair {
   margin-top: 1.25rem;
   padding-top: 1rem;
@@ -564,7 +559,6 @@
   border-color: var(--color-fg, #eee);
 }
 
-/* GitHub-style "New repository" button — same shape as Token, primary color */
 .dash-create-repo {
   margin-right: 1rem;
   display: inline-flex;

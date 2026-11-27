@@ -4,7 +4,6 @@ import { ProfileStore, ProfileValidationError, MAX_PROFILE_BODY, type Profile } 
 
 const USERNAME_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
-/** Public shape of a profile (never leaks the account hash). */
 function publicProfile(p: Profile): Record<string, unknown> {
   return {
     username: p.username,
@@ -16,7 +15,6 @@ function publicProfile(p: Profile): Record<string, unknown> {
   };
 }
 
-/** Deterministic fallback username derived from the account number. */
 function derivedUsername(store: ProfileStore, account: string): string {
   const digest = store.hash(account);
   let out = "u-";
@@ -26,10 +24,6 @@ function derivedUsername(store: ProfileStore, account: string): string {
   return out;
 }
 
-/**
- * Picks a free username derived from the account number. Tries the base
- * derivation, then appends a numeric suffix until the uniqueness index is free.
- */
 async function claimDerivedUsername(store: ProfileStore, account: string): Promise<string> {
   const base = derivedUsername(store, account);
   if (await store.usernameAvailable(base, account)) return base;
@@ -42,7 +36,6 @@ async function claimDerivedUsername(store: ProfileStore, account: string): Promi
 
 export function makeProfileHandlers(store: ProfileStore, registry: NodeRegistry) {
   return {
-    /** GET /api/profile — the caller's own profile (session required). */
     async getOwn(ctx: HttpCtx, account: string): Promise<void> {
       if (account === "") return ctx.json(401, { error: "session token required" });
       const profile = await store.get(account);
@@ -52,7 +45,6 @@ export function makeProfileHandlers(store: ProfileStore, registry: NodeRegistry)
       });
     },
 
-    /** PUT /api/profile — create or update the caller's profile. */
     async putOwn(ctx: HttpCtx, account: string): Promise<void> {
       if (account === "") return ctx.json(401, { error: "session token required" });
       const raw = await ctx.bodyBuffer(MAX_PROFILE_BODY);
@@ -83,7 +75,6 @@ export function makeProfileHandlers(store: ProfileStore, registry: NodeRegistry)
       }
     },
 
-    /** GET /api/profiles/:username — public profile lookup. */
     async getPublic(ctx: HttpCtx, username: string): Promise<void> {
       const profile = await store.getByUsername(decodeURIComponent(username));
       if (profile === null) return ctx.json(404, { error: "profile not found" });
@@ -91,7 +82,6 @@ export function makeProfileHandlers(store: ProfileStore, registry: NodeRegistry)
       ctx.json(200, { profile: publicProfile(profile) });
     },
 
-    /** GET /api/profiles/:username/activity — synthesized contribution heat map. */
     async activity(ctx: HttpCtx, username: string): Promise<void> {
       const profile = await store.getByUsername(decodeURIComponent(username));
       if (profile === null) return ctx.json(404, { error: "profile not found" });
@@ -100,8 +90,6 @@ export function makeProfileHandlers(store: ProfileStore, registry: NodeRegistry)
     },
   };
 }
-
-/* ── synthesized activity ──────────────────────────────────────────── */
 
 const ACTIVITY_DAYS = 364;
 
@@ -165,7 +153,6 @@ async function buildActivity(
   };
 }
 
-/** Small deterministic PRNG so the synthesized map is stable. */
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {

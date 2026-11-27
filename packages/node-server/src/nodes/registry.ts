@@ -39,18 +39,12 @@ export class NodeRegistry {
     private readonly onlineTtlSec: number,
   ) {}
 
-  /** RPUSHes nothing; stores a pending pairing keyed by its code (TTL 10m). */
   async registerPairing(id: string, code: string, name: string, pubkey: string): Promise<void> {
     const c = normalizeCode(code);
     await this.redis.set(`paircode:${c}`, JSON.stringify({ id, name, pubkey }), "EX", PAIRING_TTL_SEC);
     await this.redis.set(`pairbyId:${id}`, c, "EX", PAIRING_TTL_SEC);
   }
 
-  /**
-   * Completes pairing for a user-entered code; provisions the node and
-   * queues the `pair_ok` command so the node learns its token on its next
-   * poll. Returns the node id or null when the code is invalid/expired.
-   */
   async confirmPairing(code: string, account: string): Promise<string | null> {
     const c = normalizeCode(code);
     const raw = await this.redis.get(`paircode:${c}`);
@@ -95,11 +89,6 @@ export class NodeRegistry {
     return true;
   }
 
-  /** Marks liveness after a hello/poll; returns true when transitioning online.
-   * Strata writes (backed by Codeberg git pushes) can be rejected upstream
-   * (e.g. 403 PushRejected). Those failures must not kill the poll: a node
-   * that just authenticated with a valid token is online regardless of
-   * whether the liveness key could be persisted. */
   async touchOnline(id: string, name?: string, fw?: string): Promise<boolean> {
     const wasOnline = await this.redis.exists(`online:${id}`);
     const rec = await this.getNode(id);
@@ -141,13 +130,6 @@ export class NodeRegistry {
     await this.redis.del(`online:${id}`);
   }
 
-  /**
-   * Unpair a node: wipe every record associated with it so it disappears
-   * from the dashboard and can be re-paired later. Returns the owner
-   * account (or null when the node did not exist). Every individual delete
-   * is best-effort: an upstream rejection on one key must not fail the whole
-   * unpair.
-   */
   async unpairNode(id: string): Promise<string | null> {
     let rec: Record<string, string> | null;
     try {
@@ -206,8 +188,6 @@ export class NodeRegistry {
     );
   }
 
-  /** Best-effort read of the cached repo index; never throws. Falls back to the
-   * long-lived repos:<id> copy when ninfo has expired (node offline). */
   async getCachedRepos(id: string): Promise<RepoEntry[]> {
     let info: Record<string, string> = {};
     try {
@@ -284,7 +264,6 @@ export class NodeRegistry {
     return Promise.all(ids.map((id) => this.nodeView(id)));
   }
 
-  /** Distinct owner accounts across every node (cheap: node records only). */
   async allAccounts(): Promise<string[]> {
     const ids = await this.redis.keys("node:*");
     const recs = await Promise.all(ids.map((id) => this.getNode(id.slice(5))));
@@ -296,14 +275,12 @@ export class NodeRegistry {
     return Promise.all(ids.map((id) => this.nodeView(id.slice(5))));
   }
 
-  /** Queues a command for the node's next poll. */
   async pushCommand(id: string, command: { action: string } & Record<string, unknown>): Promise<void> {
     const { req_id = crypto.randomUUID(), action, ...rest } = command;
     const cmd = { ...rest, req_id, action } as Command;
     await this.redis.rpush(`inbox:${id}`, JSON.stringify({ type: "cmd", ...cmd }));
   }
 
-  /** Drains up to INBOX_MAX queued commands for the node. */
   async drainInbox(id: string): Promise<Record<string, unknown>[]> {
     const raw = await this.redis.lpopAll(`inbox:${id}`, INBOX_MAX);
     const out: Record<string, unknown>[] = [];

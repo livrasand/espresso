@@ -4,19 +4,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 export interface HttpCtx {
   method: string;
   path: string;
-  /** Query string params, already decoded. */
   query: Record<string, string>;
   header(name: string): string | null;
-  /** Request body: JSON object if parseable, otherwise the raw text. */
   body(): Promise<unknown>;
-  /** Raw request body as Buffer (size-limited). */
   bodyBuffer(limit: number): Promise<Buffer | null>;
   json(status: number, value: unknown): void;
   raw(status: number, contentType: string, data: string | Buffer): void;
   setHeader(name: string, value: string): void;
   status(code: number, message?: string): void;
-  /** Account number authenticated via X-ZKP-Token (set by the router's
-   * session middleware; empty string when the request is anonymous). */
   identity: string;
   clientIp(): string;
   done(): boolean;

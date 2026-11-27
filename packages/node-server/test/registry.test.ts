@@ -141,8 +141,6 @@ describe("RPC inbox round trip", () => {
   });
 });
 
-/** Polls the inbox the way a node firmware would until at least one
- * command is available. */
 async function drainUntil(registry: NodeRegistry, attempts = 20): Promise<Record<string, unknown>[]> {
   for (let i = 0; i < attempts; i++) {
     const cmds = await registry.drainInbox("NODE1234ABCD");

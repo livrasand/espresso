@@ -2,12 +2,6 @@ import type { RedisLike, RedisReply } from "./index.js";
 
 type Pkg = { t: "s" | "h" | "l" | "se" | "z"; e: number | null; v: unknown };
 
-/**
- * Keys whose staleness is harmless (node records, node telemetry, account
- * membership, profile lookups). Everything else — liveness, inboxes, RPC
- * responses, pairing codes, rate limits — is always read fresh because other
- * serverless instances write to them.
- */
 const CACHEABLE_PREFIXES = ["node:", "ninfo:", "repos:", "gitfile:", "gitfiles:", "profile:", "names:"];
 const READ_CACHE_TTL_MS = 3000;
 const KEYS_CACHE_TTL_MS = 5000;
@@ -23,12 +17,6 @@ export class StrataBackend implements RedisLike {
     private readonly timeoutMs = 10000,
   ) {}
 
-  /**
-   * fetch with a hard per-request timeout. Without this, a hung upstream
-   * (Strata waiting on its git host) stalls the lambda until the platform
-   * maxDuration kills it — observed as `FUNCTION_INVOCATION_TIMEOUT` after
-   * 60 s on POST /api/accounts.
-   */
   private async http(url: string, init: RequestInit = {}): Promise<Response> {
     const headers = { ...(init.headers as Record<string, string> | undefined), Connection: "close" };
     return fetch(url, {
@@ -39,11 +27,6 @@ export class StrataBackend implements RedisLike {
     } as RequestInit);
   }
 
-  /**
-   * Single GET attempt. Writes are NOT retried — an ambiguous failure
-   * (timeout after the commit landed) must not duplicate a journal op; the
-   * caller surfaces the error instead.
-   */
   private async httpGet(url: string): Promise<Response> {
     return this.http(url, { headers: this.headers() });
   }
@@ -66,8 +49,6 @@ export class StrataBackend implements RedisLike {
     return CACHEABLE_PREFIXES.some((p) => k.startsWith(p));
   }
 
-  /** Raw GET of the stored value string (null when absent). Concurrent reads
-   * of the same key share one HTTP request. */
   private fetchRaw(k: string): Promise<string | null> {
     const pending = this.inflight.get(k);
     if (pending) return pending;
@@ -83,11 +64,6 @@ export class StrataBackend implements RedisLike {
     return p;
   }
 
-  /**
-   * Reads the envelope for a key; null when absent or already expired.
-   * `fresh` bypasses the short-lived cache — required before any
-   * read-modify-write so concurrent updates are not clobbered with stale data.
-   */
   private async read(k: string, fresh = false): Promise<Pkg | null> {
     let raw: string | null;
     const useCache = !fresh && StrataBackend.cacheable(k);
@@ -115,7 +91,6 @@ export class StrataBackend implements RedisLike {
     if (k.startsWith("node:")) this.keysCache = null;
   }
 
-  /** Writes an envelope, trimming the expiry if it already elapsed. */
   private async write(k: string, pkg: Pkg): Promise<void> {
     const exp = pkg.e;
     this.invalidate(k);
@@ -152,7 +127,6 @@ export class StrataBackend implements RedisLike {
     return [];
   }
 
-  /** New package of `typ`, preserving an existing envelope's expiry. */
   private pkg(typ: Pkg["t"], existing: Pkg | null, v: unknown): Pkg {
     return { t: typ, e: existing && existing.e !== null ? existing.e : null, v };
   }
@@ -162,7 +136,6 @@ export class StrataBackend implements RedisLike {
     return new RegExp("^" + esc.replace(/\*/g, ".*").replace(/\?/g, ".") + "$");
   }
 
-  /** Parses a Redis range bound: number, "(n" (exclusive), "-inf", "+inf". */
   private static bound(raw: unknown): { v: number; exclusive: boolean } {
     const s = String(raw);
     if (s.startsWith("(")) return { v: Number(s.slice(1)), exclusive: true };

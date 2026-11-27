@@ -20,7 +20,6 @@ export function verifyNodeSignature(pubKeyHex: string, sigHex: string, payload: 
   }
 }
 
-/** Wire payload format: "<action>:<nodeID>:<tsMillis>". */
 export function signedPayload(nodeId: string, tsMs: number, action: string): string {
   return `${action}:${nodeId}:${String(Math.floor(tsMs))}`;
 }

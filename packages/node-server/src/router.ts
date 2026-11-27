@@ -22,8 +22,6 @@ import path from "node:path";
 const startTime = new Date();
 
 export interface AppOptions {
-  /** Dev-only: serve static web assets from this directory. On Vercel
-   * static hosting is handled by the platform, so leave it unset. */
   staticDir?: string;
 }
 
@@ -33,8 +31,6 @@ export interface App {
   registry: NodeRegistry;
   serve(ctx: HttpCtx): Promise<void>;
 }
-
-/* ── wiring ────────────────────────────────────────────────────────── */
 
 let warnedSecret = false;
 
@@ -93,10 +89,6 @@ interface RouteDeps {
   staticServer: StaticServer | null;
 }
 
-/* ── middleware helpers ────────────────────────────────────────────── */
-
-/** Port of sessionAuthMiddlewareOptional: sets ctx.identity from a valid
- * X-ZKP-Token header; never aborts. */
 function applyOptionalSession(ctx: HttpCtx, cfg: Config): void {
   const token = ctx.header("x-zkp-token") ?? "";
   if (token !== "") {
@@ -105,7 +97,6 @@ function applyOptionalSession(ctx: HttpCtx, cfg: Config): void {
   }
 }
 
-/** Port of sessionAuthMiddleware: requires a valid session token. */
 function requireSession(ctx: HttpCtx, cfg: Config): boolean {
   const token = ctx.header("x-zkp-token") ?? "";
   if (token === "") {
@@ -121,8 +112,6 @@ function requireSession(ctx: HttpCtx, cfg: Config): boolean {
   return true;
 }
 
-/** Port of anonymousAuthMiddleware as a callable: when a key is configured it
- * must match the X-Espresso-Key header; when unset, trusted-network mode. */
 function requireApiKey(ctx: HttpCtx, cfg: Config): boolean {
   if (apiKeyOk(ctx, cfg.apiKey)) return true;
   ctx.json(401, { error: "invalid API key" });
@@ -140,8 +129,6 @@ async function accountRateLimitOk(ctx: HttpCtx, rds: Redis): Promise<boolean> {
   ctx.json(429, { error: "account rate limit exceeded" });
   return false;
 }
-
-/* ── dispatch ──────────────────────────────────────────────────────── */
 
 async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<void> {
   applySecurityHeaders(ctx);
@@ -306,8 +293,6 @@ function notFound(ctx: HttpCtx, path: string): void {
   ctx.json(404, { error: "not found" });
 }
 
-/* ── health / metrics (port of helpers.go) ─────────────────────────── */
-
 async function health(deps: RouteDeps, ctx: HttpCtx, cfg: Config): Promise<void> {
   const online = await deps.registry.list();
   ctx.json(200, {
@@ -333,8 +318,6 @@ function metrics(ctx: HttpCtx): void {
   });
 }
 
-/* ── static assets (dev server) ────────────────────────────────────── */
-
 type StaticServer = (ctx: HttpCtx, urlPath: string) => boolean;
 
 const STATIC_MIME: Record<string, string> = {
@@ -346,8 +329,6 @@ const STATIC_MIME: Record<string, string> = {
   ".ico": "image/x-icon",
 };
 
-/** URL → relative file name inside the web/ directory (mirrors the Go
- * StaticFile set; null reads the repo-root logo once as a fallback). */
 const STATIC_ROUTES: Array<[url: string, fileName: string | null]> = [
   ["/", "index.html"],
   ["/login", "auth.html"],

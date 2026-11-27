@@ -1,4 +1,3 @@
-/* docs.css — API documentation layout for the Espresso docs page. */
 
 .docs-main {
   flex: 1;
@@ -8,7 +7,6 @@
   padding: 2.5rem 1.5rem 4rem;
 }
 
-/* Hero */
 .docs-hero {
   padding-bottom: 2rem;
   margin-bottom: 2.5rem;
@@ -56,7 +54,6 @@
   font-size: 0.85em;
 }
 
-/* Layout: sidebar TOC + content */
 .docs-layout {
   display: grid;
   grid-template-columns: 14rem minmax(0, 1fr);
@@ -98,7 +95,6 @@
   border-left-color: #f76f53;
 }
 
-/* Sections */
 .docs-section {
   margin-bottom: 3rem;
   scroll-margin-top: 1rem;
@@ -130,7 +126,6 @@
   font-size: 0.85em;
 }
 
-/* Endpoint list */
 .docs-endpoints {
   list-style: none;
   margin: 0;
@@ -197,7 +192,6 @@
   font-size: 0.85em;
 }
 
-/* Inline note blocks (auth, git) */
 .docs-note {
   margin: 0;
   padding: 0.875rem 1rem;
@@ -225,7 +219,6 @@
   color: var(--color-main);
 }
 
-/* Responsive: collapse sidebar on narrow screens */
 @media (max-width: 720px) {
   .docs-main {
     padding: 1.75rem 1rem 3rem;

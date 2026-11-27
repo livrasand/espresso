@@ -14,7 +14,6 @@ export function accountsSecurity(ctx: HttpCtx): boolean {
 
 export function makeAccountHandlers(store: AccountStore, cfg: Config) {
   return {
-    /** POST /api/accounts — mint account + auto-login token. */
     async register(ctx: HttpCtx): Promise<void> {
       const raw = await ctx.bodyBuffer(MAX_ACCOUNT_BODY);
       if (raw === null) return ctx.json(413, { error: "account request too large" });
@@ -26,7 +25,6 @@ export function makeAccountHandlers(store: AccountStore, cfg: Config) {
       }
     },
 
-    /** POST /api/accounts/login — 16-digit number is the only credential. */
     async login(ctx: HttpCtx): Promise<void> {
       const raw = await ctx.bodyBuffer(MAX_ACCOUNT_BODY);
       if (raw === null) return ctx.json(413, { error: "account request too large" });
@@ -47,7 +45,6 @@ export function makeAccountHandlers(store: AccountStore, cfg: Config) {
       ctx.json(200, { account: code, session_token: issueSessionToken(code, cfg.secret) });
     },
 
-    /** POST /api/accounts/backup — returns the number behind the session. */
     async backup(ctx: HttpCtx, identity: string): Promise<void> {
       if (identity === "") return ctx.json(401, { error: "session token required" });
       ctx.json(200, { account: identity });

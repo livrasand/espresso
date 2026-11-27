@@ -4,7 +4,6 @@ export interface RateLimitOptions {
   keyPrefix: string;
   max: number;
   windowMs: number;
-  /** identifies the client (e.g. IP); may itself be keyed by account. */
   id: string;
 }
 

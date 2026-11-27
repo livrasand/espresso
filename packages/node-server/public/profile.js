@@ -1,10 +1,3 @@
-/* profile.js — public profile page.
- *
- * Loads the signed-in account's own profile (GET /api/profile) when a session
- * exists, or falls back to a guest state. Rendering, editing (PUT /api/profile)
- * and the synthesized activity heat map (GET /api/profiles/:u/activity) are
- * wired here. Public profiles are reachable at /profile?u=<username>.
- */
 'use strict';
 
 (function () {
@@ -135,8 +128,6 @@
     el.bioCount.classList.toggle('is-near-limit', count >= 260);
   }
 
-  /* ── rendering ─────────────────────────────────────────────────────── */
-
   function renderProfile(p) {
     state.profile = p;
     renderAccount();
@@ -199,8 +190,6 @@
     if (el.repos) el.repos.textContent = String(repos);
   }
 
-  /* ── heat map ──────────────────────────────────────────────────────── */
-
   function renderHeatmap(activity) {
     const days = activity && Array.isArray(activity.days) ? activity.days : [];
     if (!el.heatmapGrid) return;
@@ -234,8 +223,6 @@
         : '';
     }
   }
-
-  /* ── editor ────────────────────────────────────────────────────────── */
 
   function openEditor() {
     if (el.layout) el.layout.hidden = false;
@@ -355,8 +342,6 @@
     }
   }
 
-  /* ── loading ───────────────────────────────────────────────────────── */
-
   async function loadActivity(username) {
     if (!username) return;
     try {
@@ -474,8 +459,6 @@
     }
     document.body.removeChild(input);
   }
-
-  /* ── boot ──────────────────────────────────────────────────────────── */
 
   function boot() {
     renderAccount();

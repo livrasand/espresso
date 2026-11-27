@@ -37,7 +37,6 @@ function tsMs(v: unknown): number {
 
 export function makeIngestHandlers(registry: NodeRegistry) {
   return {
-    /** POST /node/pair — pair_request from an unprovisioned node. */
     async pair(ctx: HttpCtx): Promise<void> {
       const body = (await ctx.body()) as NodeBody | null;
       if (body === null || typeof body !== "object") return badRequest(ctx, "missing body");
@@ -55,11 +54,6 @@ export function makeIngestHandlers(registry: NodeRegistry) {
       ctx.json(200, { ok: true });
     },
 
-    /**
-     * POST /node/poll — combined hello + heartbeat + inbox drain.
-     * Unpaired nodes must pass pubkey+sig verified against their pending
-     * pairing (prevents token squatting on pair_ok delivery).
-     */
     async poll(ctx: HttpCtx): Promise<void> {
       const body = (await ctx.body()) as Record<string, unknown> | null;
       if (body === null || typeof body !== "object") return badRequest(ctx, "missing body");
@@ -115,7 +109,6 @@ export function makeIngestHandlers(registry: NodeRegistry) {
       ctx.json(200, { ok: true, online: token !== "", commands });
     },
 
-    /** POST /node/respond — node answers an enqueued command. */
     async respond(ctx: HttpCtx): Promise<void> {
       const body = (await ctx.body()) as Record<string, unknown> | null;
       if (body === null || typeof body !== "object") return badRequest(ctx, "missing body");

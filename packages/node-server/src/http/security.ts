@@ -29,7 +29,6 @@ function isLocalhostOrigin(origin: string): boolean {
   }
 }
 
-/** Sets CORS headers for localhost origins; completes OPTIONS preflight. */
 export function applyLocalhostCORS(ctx: HttpCtx): void {
   const origin = ctx.header("origin") ?? "";
   if (isLocalhostOrigin(origin)) {
@@ -42,11 +41,6 @@ export function applyLocalhostCORS(ctx: HttpCtx): void {
   }
 }
 
-/**
- * Management API key gate (X-Espresso-Key). Mirrors anonymousAuthMiddleware:
- * when no key is configured the endpoint stays open (trusted-network mode).
- * Returns false only when a key IS configured but wrongly provided.
- */
 export function apiKeyOk(ctx: HttpCtx, apiKey: string): boolean {
   if (apiKey === "") return true;
   const provided = ctx.header("x-espresso-key") ?? "";

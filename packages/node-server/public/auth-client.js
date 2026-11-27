@@ -1,13 +1,3 @@
-/* auth-client.js — account session client for the accounts API.
- *
- * Minimal replacement for the removed ZKP client. Talks to the
- * Mullvad-style account endpoints:
- *   POST /api/accounts        (mint)
- *   POST /api/accounts/login  (issue session token)
- *   POST /api/accounts/backup (number behind session)
- * Session tokens are time-limited HMAC tokens (30 days); the server accepts
- * them via the X-ZKP-Token header (name kept for firmware compatibility).
- */
 'use strict';
 
 const API_BASE = '';
@@ -15,8 +5,6 @@ const TOKEN_KEY = 'espresso_session_token';
 const ACCOUNT_KEY = 'espresso_account';
 const ACCOUNTS_KEY = 'espresso_accounts';
 const ACCOUNTS_MAX = 8;
-
-/* ── Session helpers ───────────────────────────────────────────────── */
 
 function readJson(key) {
   try { return localStorage.getItem(key) || ''; } catch { return ''; }
@@ -37,8 +25,6 @@ function saveSession(account, token) {
   rememberAccount(account);
 }
 
-/* ── Known-accounts registry (so users don't lose their number) ─────── */
-
 function readAccounts() {
   try {
     const arr = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
@@ -50,7 +36,6 @@ function writeAccounts(list) {
   try { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
 }
 
-/** Record an account number as "known"; most-recent first. */
 function rememberAccount(account) {
   const digits = String(account || '').replace(/\D/g, '');
   if (!digits) return readAccounts();
@@ -60,7 +45,6 @@ function rememberAccount(account) {
   return list;
 }
 
-/** Remove a single account number from the known list. */
 function forgetAccount(account) {
   const digits = String(account || '').replace(/\D/g, '');
   const list = readAccounts().filter((e) => e.account !== digits);
@@ -72,7 +56,6 @@ function knownAccounts() {
   return readAccounts();
 }
 
-/** Format a 16-digit number as spaced groups. */
 function formatAccount(account) {
   return String(account || '').replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim();
 }
@@ -95,15 +78,12 @@ function escapeHtml(s) {
   }[c]));
 }
 
-/* ── API calls ─────────────────────────────────────────────────────── */
 
-/** Mint a new account; returns { account, session_token }. */
 async function mintAccount() {
   const res = await fetch(API_BASE + '/api/accounts', { method: 'POST' });
   return checkResponse(res);
 }
 
-/** Log in with the 16-digit account number; returns { account, session_token }. */
 async function login(account) {
   const digits = String(account || '').replace(/\D/g, '');
   const res = await fetch(API_BASE + '/api/accounts/login', {
@@ -114,7 +94,6 @@ async function login(account) {
   return checkResponse(res);
 }
 
-/** Return the account number behind the current session token. */
 async function backupAccount() {
   const res = await fetch(API_BASE + '/api/accounts/backup', { method: 'POST', headers: authHeaders() });
   return checkResponse(res);
@@ -129,8 +108,6 @@ async function checkResponse(res) {
   return body;
 }
 
-/* ── Public namespace ──────────────────────────────────────────────── */
-
 window.EspressoAuth = {
   session,
   saveSession,
@@ -144,4 +121,3 @@ window.EspressoAuth = {
   knownAccounts,
   formatAccount,
 };
-

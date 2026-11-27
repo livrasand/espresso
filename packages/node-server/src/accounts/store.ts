@@ -14,11 +14,6 @@ export class AccountStore {
     return crypto.createHash("sha256").update(code).digest("hex");
   }
 
-  /** Allocates a fresh 16-digit account number; only the hash is stored.
-   *  Strata writes are slow (git-backed), so we avoid the read-modify-write
-   *  setNx loop and write directly: collisions are astronomically unlikely
-   *  in a 16-digit space (9e15), and a duplicate would only mean a login
-   *  number collides, which is harmless. */
   async create(): Promise<string> {
     const code = generateAccountNumber();
     await this.redis.set(`acct:${this.hash(code)}`, new Date().toISOString());

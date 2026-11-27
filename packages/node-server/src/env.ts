@@ -1,18 +1,12 @@
 export interface Config {
-  /** Strata KV store (git-backed). URL + API token; unset → in-memory dev store. */
   strata: {
     url: string | null;
     token: string | null;
-    /** Hard cap (ms) per Strata HTTP round trip (see STRATA_TIMEOUT_MS). */
     timeoutMs: number;
   };
-  /** Secret for HMAC session tokens (serverless: must come from env). */
   secret: Buffer;
-  /** Optional management API key (X-Espresso-Key). */
   apiKey: string;
-  /** Seconds a node stays "online" without a poll. */
   nodeOnlineTtlSec: number;
-  /** Max ms an RPC waits for the node's poll/response. */
   rpcTimeoutMs: number;
   logFormat: "text" | "json";
   commitHash: string;

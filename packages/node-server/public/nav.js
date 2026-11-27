@@ -1,17 +1,3 @@
-/* nav.js — shared top navigation component.
- *
- * Pages include a placeholder and let this script render the top bar so the
- * markup lives in one place:
- *   <div id="site-nav" data-account="dashboard" data-page="dashboard"></div>
- *   <script src="/nav.js" defer></script>
- *
- * data-account  → "dashboard" (interactive account menu), "profile" (account
- *                 slot filled by profile.js) or "none" (no account area).
- * data-page     → current page id, used to mark the active nav link.
- *
- * Must be loaded before dashboard.js / profile.js (defer order) so the account
- * elements exist when those scripts query them.
- */
 (function () {
   'use strict';
 
