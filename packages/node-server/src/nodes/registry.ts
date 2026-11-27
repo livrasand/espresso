@@ -368,9 +368,15 @@ export class NodeRegistry {
   // the node's slow per-file RPC.
 
   async setGitFile(owner: string, repo: string, relPath: string, b64: string): Promise<void> {
-    await this.redis.set(`gitfile:${owner}:${repo}:${relPath}`, b64, "EX", GIT_FILE_TTL_SEC).catch((e) =>
-      logError(`strata gitfile write failed: ${e.message}`),
-    );
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        await this.redis.set(`gitfile:${owner}:${repo}:${relPath}`, b64, "EX", GIT_FILE_TTL_SEC);
+        return;
+      } catch (e) {
+        if (attempt === 4) logError(`strata gitfile write failed: ${e instanceof Error ? e.message : String(e)}`);
+        await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+      }
+    }
   }
 
   async getGitFile(owner: string, repo: string, relPath: string): Promise<Buffer | null> {
@@ -384,9 +390,15 @@ export class NodeRegistry {
   }
 
   async setGitFileList(owner: string, repo: string, paths: string[]): Promise<void> {
-    await this.redis.set(`gitfiles:${owner}:${repo}`, JSON.stringify(paths), "EX", GIT_FILE_TTL_SEC).catch((e) =>
-      logError(`strata gitfiles write failed: ${e.message}`),
-    );
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        await this.redis.set(`gitfiles:${owner}:${repo}`, JSON.stringify(paths), "EX", GIT_FILE_TTL_SEC);
+        return;
+      } catch (e) {
+        if (attempt === 4) logError(`strata gitfiles write failed: ${e instanceof Error ? e.message : String(e)}`);
+        await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+      }
+    }
   }
 
   async listGitFiles(owner: string, repo: string): Promise<string[]> {
@@ -404,9 +416,13 @@ export class NodeRegistry {
   async clearGitRepo(owner: string, repo: string): Promise<void> {
     const old = await this.listGitFiles(owner, repo);
     for (const p of old) {
-      await this.redis.del(`gitfile:${owner}:${repo}:${p}`).catch(() => 0);
+      for (let a = 0; a < 3; a++) {
+        try { await this.redis.del(`gitfile:${owner}:${repo}:${p}`); break; } catch { await new Promise((r) => setTimeout(r, 200)); }
+      }
     }
-    await this.redis.del(`gitfiles:${owner}:${repo}`).catch(() => 0);
+    for (let a = 0; a < 3; a++) {
+      try { await this.redis.del(`gitfiles:${owner}:${repo}`); break; } catch { await new Promise((r) => setTimeout(r, 200)); }
+    }
   }
 
   async setTelegramChat(chatId: number, account: string): Promise<void> {
