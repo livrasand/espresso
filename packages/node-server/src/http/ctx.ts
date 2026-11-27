@@ -143,40 +143,50 @@ function clientIpOf(getHeader: (n: string) => string | null, fallback: string): 
 }
 
 function _readBody(req: IncomingMessage, limit: number): Promise<Buffer | null> {
+  const len = Number(req.headers["content-length"] ?? 0);
+  if (len > limit) return Promise.resolve(null);
+
+  // Vercel's Node runtime often buffers the request body internally and
+  // exposes it neither via req.body nor as a flowing stream (readableEnded is
+  // already true). Try a synchronous read() first to drain any buffered data.
+  const chunks: Buffer[] = [];
+  let size = 0;
+  let chunk: Buffer | string | null = null;
+  try {
+    // eslint-disable-next-line no-cond-assign
+    while ((chunk = req.read()) !== null) {
+      const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
+      size += b.length;
+      if (size > limit) return Promise.resolve(null);
+      chunks.push(b);
+    }
+  } catch {
+    /* fall through to event-based read */
+  }
+  if (chunks.length > 0) return Promise.resolve(Buffer.concat(chunks));
+
+  // Fall back to event-based read with a safety timeout.
   return new Promise((resolve) => {
-    const len = Number(req.headers["content-length"] ?? 0);
-    if (len > limit) {
-      resolve(null);
-      return;
-    }
-    // If the stream is already fully consumed/ended (common under Vercel's
-    // runtime where the body is delivered pre-read), resolve immediately
-    // instead of waiting forever for an "end" event that already fired.
-    if ((req as unknown as { readableEnded?: boolean }).readableEnded || (req as unknown as { complete?: boolean }).complete) {
-      resolve(Buffer.alloc(0));
-      return;
-    }
-    const chunks: Buffer[] = [];
-    let size = 0;
+    const evChunks: Buffer[] = [];
+    let evSize = 0;
     let resolved = false;
     const finish = (buf: Buffer | null) => {
       if (resolved) return;
       resolved = true;
       resolve(buf);
     };
-    req.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > limit) {
+    req.on("data", (c: Buffer) => {
+      evSize += c.length;
+      if (evSize > limit) {
         finish(null);
         req.pause();
         return;
       }
-      chunks.push(chunk);
+      evChunks.push(c);
     });
-    req.on("end", () => finish(Buffer.concat(chunks)));
+    req.on("end", () => finish(Buffer.concat(evChunks)));
     req.on("error", () => finish(null));
-    req.on("close", () => finish(resolved ? null : Buffer.concat(chunks)));
-    // Safety net: never hang longer than 5s waiting for the body.
-    setTimeout(() => finish(Buffer.concat(chunks)), 5000);
+    req.on("close", () => finish(resolved ? null : Buffer.concat(evChunks)));
+    setTimeout(() => finish(Buffer.concat(evChunks)), 5000);
   });
 }
