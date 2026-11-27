@@ -71,7 +71,6 @@ async function syncToStrata(registry: NodeRegistry, owner: string, repo: string,
     }
   }
   walk(localDir, "");
-  // Single Strata write (one HTTP PUT) - much faster than per-file writes.
   try {
     await registry.setGitRepo(owner, repo, JSON.stringify(collected));
   } catch (e) {
@@ -164,18 +163,19 @@ export async function runNodeGitPack(
   const repoDir = path.join(tmpRoot, repo);
   try {
     fs.mkdirSync(repoDir, { recursive: true });
-    if (service === "git-upload-pack") {
-      let fromStrata = false;
-      if (registry && owner) {
-        const paths = await registry.listGitFiles(owner, repo);
-        if (paths.length > 0) {
-          await syncFromStrata(registry, owner, repo, repoDir);
-          fromStrata = true;
-        }
+    // Populate the temp repo from Strata (or node) before running git, so
+    // receive-pack has the old objects for thin packs and upload-pack can
+    // serve clones.
+    let fromStrata = false;
+    if (registry && owner) {
+      const paths = await registry.listGitFiles(owner, repo);
+      if (paths.length > 0) {
+        await syncFromStrata(registry, owner, repo, repoDir);
+        fromStrata = true;
       }
-      if (!fromStrata && nodeId) {
-        await syncFromNode(callNode, nodeId, repo, repoDir);
-      }
+    }
+    if (!fromStrata && nodeId && service === "git-upload-pack") {
+      await syncFromNode(callNode, nodeId, repo, repoDir);
     }
     if (!fs.existsSync(path.join(repoDir, "HEAD"))) {
       await runGit(["init", "--bare", repoDir], tmpRoot, Buffer.alloc(0)).catch(() => {});
@@ -185,8 +185,6 @@ export async function runNodeGitPack(
       : ["receive-pack", "--stateless-rpc", repoDir];
     const output = await runGit(gitArgs, tmpRoot, input);
     if (service === "git-receive-pack") {
-      // Persist the updated repo to Strata (control plane store) BEFORE cleanup,
-      // so clones work regardless of node latency.
       if (registry && owner) {
         try {
           await syncToStrata(registry, owner, repo, repoDir);
@@ -194,7 +192,6 @@ export async function runNodeGitPack(
           console.error("syncToStrata failed:", (e as Error).message);
         }
       }
-      // Node sync is fire-and-forget (slow); don't block the push.
       if (nodeId) {
         void syncToNode(callNode, nodeId, repo, repoDir).catch((e) =>
           console.error("syncToNode failed:", (e as Error).message),

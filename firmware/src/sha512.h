@@ -1,5 +1,3 @@
-// Monocypher version __git__
-
 #ifndef SHA512_H
 #define SHA512_H
 
@@ -7,7 +5,7 @@
 #include <inttypes.h>
 
 typedef struct {
-    uint64_t w[80]; // work area
+    uint64_t w[80];
     uint64_t hash[8];
     uint64_t input[16];
     uint64_t input_size[2];
@@ -21,4 +19,4 @@ void crypto_sha512_final (crypto_sha512_ctx *ctx, uint8_t hash[64]);
 
 void crypto_sha512(uint8_t *out,const uint8_t *message, size_t message_size);
 
-#endif // SHA512_H
+#endif

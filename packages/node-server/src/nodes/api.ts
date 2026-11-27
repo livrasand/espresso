@@ -1,6 +1,3 @@
-// Management API handlers (port of internal/node/api.go) and repo browsing
-// (/api/gg). RPC rides on the polling inbox instead of WebSocket.
-
 import type { HttpCtx } from "../http/ctx.js";
 import type { NodeRegistry, RepoEntry } from "./registry.js";
 import type { ProfileStore } from "../profiles/store.js";
@@ -66,9 +63,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       ctx.json(401, { error: "authenticated identity required" });
       return null;
     }
-    // Strata reads can time out when Codeberg is slow. A node that is
-    // provisioned for this account is treated as online even when the
-    // liveness key read fails — the node reports itself on every poll.
     const online = await registry.isOnline(id).catch(() => false);
     const rec = await registry.getNode(id);
     if (rec === null || rec["account"] !== owner) {
@@ -83,8 +77,6 @@ export function makeApiHandlers(deps: ApiDeps) {
       return null;
     }
     if (!online) {
-      // Fall back to the cached record: the node was provisioned and may
-      // simply have missed the last heartbeat write.
       return { id, owner };
     }
     return { id, owner };
@@ -128,9 +120,6 @@ export function makeApiHandlers(deps: ApiDeps) {
     async repos(ctx: HttpCtx, idParam: string): Promise<void> {
       const live = await getLiveNode(ctx, idParam);
       if (live === null) return;
-      // Serve only from the cached repo index. Never block on a synchronous
-      // RPC to the ESP32: the node reports its index on every poll via
-      // /node/respond, so the cache is always fresh enough for browsing.
       const repositories = await registry.getCachedRepos(live.id);
       ctx.json(200, { repositories });
     },
@@ -286,8 +275,6 @@ export function makeApiHandlers(deps: ApiDeps) {
   };
 }
 
-// ── /api/gg — repo browsing served through the paired node ──────────
-
 export function makeGGHandlers(deps: ApiDeps) {
   const { registry, callNode } = deps;
 
@@ -324,9 +311,6 @@ export function makeGGHandlers(deps: ApiDeps) {
     repo: string,
   ): Promise<{ id: string; owner: string } | null> {
     const accounts = await candidateAccounts(account);
-    // Look up the repo in the cached repo index on every node of the account.
-    // Never do a synchronous RPC to the ESP32 here: it can take longer than
-    // Vercel's 60 s limit and the cache is refreshed on every poll.
     const found = await Promise.all(
       accounts.map(async (acct) => {
         const nodes = await registry.listByAccount(acct).catch(() => [] as Record<string, unknown>[]);
@@ -352,8 +336,6 @@ export function makeGGHandlers(deps: ApiDeps) {
     cacheMs = false,
   ): Promise<Record<string, unknown> | null> {
     try {
-      // Read-only refs lookups are memoized for 10 s (branches + tags + the
-      // commit list are all answered by one refs_list round trip).
       return cacheMs
         ? await memoized(`rpc:${id}:${action}:${JSON.stringify(params)}`, 10_000, () => callNode(id, action, params))
         : await callNode(id, action, params);

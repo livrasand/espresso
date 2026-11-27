@@ -1,5 +1,3 @@
-// Monocypher version __git__
-
 #include "sha512.h"
 
 #define FOR(i, min, max)     for (size_t i = min; i < max; i++)
@@ -107,7 +105,6 @@ static void sha512_set_input(crypto_sha512_ctx *ctx, u8 input)
     ctx->input[word] |= (u64)input << (8 * (7 - byte));
 }
 
-// increment a 128-bit "word".
 static void sha512_incr(u64 x[2], u64 y)
 {
     x[1] += y;
@@ -119,7 +116,7 @@ static void sha512_incr(u64 x[2], u64 y)
 static void sha512_end_block(crypto_sha512_ctx *ctx)
 {
     if (ctx->input_idx == 128) {
-        sha512_incr(ctx->input_size, 1024); // size is in bits
+        sha512_incr(ctx->input_size, 1024);
         sha512_compress(ctx);
         ctx->input_idx = 0;
     }
@@ -153,14 +150,12 @@ void crypto_sha512_init(crypto_sha512_ctx *ctx)
 void crypto_sha512_update(crypto_sha512_ctx *ctx,
                           const u8 *message, size_t message_size)
 {
-    // Align ourselves with block boundaries
     size_t align = MIN(ALIGN(ctx->input_idx, 128), message_size);
     sha512_update(ctx, message, align);
     message      += align;
     message_size -= align;
 
-    // Process the message block by block
-    FOR (i, 0, message_size / 128) { // number of blocks
+    FOR (i, 0, message_size / 128) {
         FOR (j, 0, 16) {
             ctx->input[j] = load64_be(message + j*8);
         }
@@ -170,28 +165,24 @@ void crypto_sha512_update(crypto_sha512_ctx *ctx,
     }
     message_size &= 127;
 
-    // remaining bytes
     sha512_update(ctx, message, message_size);
 }
 
 void crypto_sha512_final(crypto_sha512_ctx *ctx, u8 hash[64])
 {
-    sha512_incr(ctx->input_size, ctx->input_idx * 8); // size is in bits
-    sha512_set_input(ctx, 128);                       // padding
+    sha512_incr(ctx->input_size, ctx->input_idx * 8);
+    sha512_set_input(ctx, 128);
 
-    // compress penultimate block (if any)
     if (ctx->input_idx > 111) {
         sha512_compress(ctx);
         FOR(i, 0, 14) {
             ctx->input[i] = 0;
         }
     }
-    // compress last block
     ctx->input[14] = ctx->input_size[0];
     ctx->input[15] = ctx->input_size[1];
     sha512_compress(ctx);
 
-    // copy hash to output (big endian)
     FOR (i, 0, 8) {
         store64_be(hash + i*8, ctx->hash[i]);
     }

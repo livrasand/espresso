@@ -1,6 +1,3 @@
-// Security middleware: headers, CORS, API-key gate (port of
-// internal/http/middleware.go).
-
 import type { HttpCtx } from "./ctx.js";
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -54,7 +51,6 @@ export function apiKeyOk(ctx: HttpCtx, apiKey: string): boolean {
   if (apiKey === "") return true;
   const provided = ctx.header("x-espresso-key") ?? "";
   if (provided === "") return false;
-  // constant-time compare
   if (provided.length !== apiKey.length) return false;
   let diff = 0;
   for (let i = 0; i < provided.length; i++) diff |= provided.charCodeAt(i) ^ apiKey.charCodeAt(i);

@@ -1,5 +1,3 @@
-// Structured, privacy-preserving logger (port of internal/utils/logging.go).
-
 import type { Config } from "./env.js";
 
 let cfg: Config | null = null;

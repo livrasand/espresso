@@ -1,11 +1,3 @@
-// Node ingest handlers (port of internal/node/ws.go onto HTTP polling).
-// Wire contract "Node Protocol v2":
-//   POST /node/pair      {id, code, name, pubkey, ts, sig}         → {ok}
-//   POST /node/poll      {id, token?, pubkey, ts, sig, ...telemetry}
-//                        → {online, commands:[...]} | 401 pair_rejected
-//   POST /node/respond   {id, token, req_id, ok, error?, ...payload}
-// Pairing payloads are signed with "<action>:<id>:<ts>" over Ed25519.
-
 import type { HttpCtx } from "../http/ctx.js";
 import type { NodeRegistry } from "./registry.js";
 import { log, logError } from "../log.js";
@@ -78,8 +70,6 @@ export function makeIngestHandlers(registry: NodeRegistry) {
       const token = str(body.token);
       let commands: Record<string, unknown>[];
       if (token !== "") {
-        // provisioned node: token IS the bearer credential (same trust
-        // model as the WebSocket hello).
         if (!(await registry.tokenValid(id, token))) {
           log(`[node] hello rejected (bad token) from ${id}`);
           return ctx.json(401, { error: "pair_rejected" });
@@ -97,16 +87,10 @@ export function makeIngestHandlers(registry: NodeRegistry) {
         });
         if (cameOnline) {
           log(`[node] ONLINE: ${id}` + (name ? ` (${name})` : "") + (fw ? ` fw=${fw}` : ""));
-          // Same refresh the WS hello performed.
           await registry.pushCommand(id, { action: "repo_list" });
         }
         commands = await registry.drainInbox(id);
       } else {
-        // Unprovisioned node (no bearer token). Two cases:
-        //   1. Already provisioned (node record exists): verify against the
-        //      stored pubkey and re-issue pair_ok so it can complete pairing
-        //      without the user re-entering the code.
-        //   2. Not yet provisioned: verify against the pending pairing code.
         commands = [];
         const payload = signedPayload(id, ts, "poll");
         const rec = await registry.getNode(id);
@@ -143,7 +127,6 @@ export function makeIngestHandlers(registry: NodeRegistry) {
       }
       const reqId = str(body.req_id);
       if (reqId === "" || reqId.includes(":")) return badRequest(ctx, "invalid req_id");
-      // repo_list responses also refresh the repo index (UpdateRepos).
       if (body.action === "repo_list") {
         const repos = Array.isArray(body.repositories) ? body.repositories.map(asRepoEntry) : [];
         await registry.updateRepos(id, repos);
@@ -153,7 +136,7 @@ export function makeIngestHandlers(registry: NodeRegistry) {
       const payload: Record<string, unknown> = isOk ? { ok: true } : { ok: false, error: str(body.error) };
       for (const [k, v] of Object.entries(body)) {
         if (["id", "token", "sig", "ts", "type", "ok"].includes(k)) continue;
-        if (!isOk && k === "error") continue; // error already handled
+        if (!isOk && k === "error") continue;
         payload[k] = v;
       }
       await registry.storeResponse(reqId, payload);

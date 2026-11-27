@@ -193,7 +193,6 @@ void setup() {
     digitalWrite(LED_PROVISION_PIN, LOW);
     log_i("\n=== Espresso node firmware  v%s (Node Protocol v2) ===", FIRMWARE_VERSION);
 
-    // 1. Provisioning / NVS
     provision.begin();
     if (!provision.configured) {
         log_i("First run — starting provisioning AP");
@@ -202,7 +201,6 @@ void setup() {
         provision.startAP(&gostServer, &gostDNS);
         log_i("AP started: Espresso-%s, IP=%s", provision.nodeId.c_str(), WiFi.softAPIP().toString().c_str());
         log_i("Pair code: %s", provision.pairCode.c_str());
-        // Web handlers
         gostServer.on("/", HTTP_GET, []() { gostServer.send(200, "text/html", PORTAL_HTML); });
         gostServer.on("/api/save", HTTP_POST, []() {
             String body = gostServer.arg("plain");
@@ -247,10 +245,8 @@ void setup() {
         return;
     }
 
-    // 2. WiFi
     wifiConnect();
 
-    // 3. Storage (SD → USB → Flash priority with fallback)
     storage.begin();
 
     node.begin();

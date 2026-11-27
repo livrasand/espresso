@@ -1,7 +1,3 @@
-// RPC (port of internal/node/conn.go Call): enqueue a command into the
-// node's Redis inbox and wait for the matching response, which the firmware
-// delivers through POST /node/respond.
-
 import crypto from "node:crypto";
 import type { NodeRegistry } from "./registry.js";
 
@@ -24,9 +20,6 @@ export function makeRpc(registry: NodeRegistry, opts: { rpcTimeoutMs: number; ma
     await registry.pushCommand(id, { req_id: reqId, action, ...params });
 
     const deadline = Date.now() + wait;
-    // Poll until the node drains the inbox and posts the matching reply
-    // (Redis is the bus across instances). Back off from 120 ms to 400 ms:
-    // fast replies are picked up quickly, slow ones don't hammer the store.
     let delay = 120;
     while (Date.now() < deadline) {
       const resp = await registry.peekResponse(reqId);

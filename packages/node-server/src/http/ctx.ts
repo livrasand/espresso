@@ -1,5 +1,3 @@
-// Minimal HTTP plumbing: a normalized request/response context that works on
-// both plain Node http (dev server) and Vercel's Node.js serverless runtime.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 
@@ -50,10 +48,6 @@ export function ctxFor(req: IncomingMessage, res: ServerResponse, preBody?: unkn
     identity: "",
     async body(): Promise<unknown> {
       if (bodyCache !== undefined) return bodyCache;
-      // Vercel's Node.js runtime may pre-parse the body into req.body and
-      // fully consume the stream, in which case _readBody would never fire
-      // "end" and hang until the function times out. Prefer the pre-parsed
-      // value when present.
       const pre = (req as unknown as { body?: unknown }).body;
       let buf: Buffer | null;
       if (pre !== undefined && pre !== null) {
@@ -72,9 +66,6 @@ export function ctxFor(req: IncomingMessage, res: ServerResponse, preBody?: unkn
       }
     },
     async bodyBuffer(limit): Promise<Buffer | null> {
-      // Vercel's runtime pre-parses the body into req.body and fully
-      // consumes the stream. Prefer that when present (mirrors body()).
-      // Also check a few alternate properties some runtimes use for the raw body.
       const anyReq = req as unknown as { body?: unknown; rawBody?: unknown; __body?: unknown };
       for (const candidate of [anyReq.body, anyReq.rawBody, anyReq.__body]) {
         if (candidate === undefined || candidate === null) continue;
@@ -83,7 +74,6 @@ export function ctxFor(req: IncomingMessage, res: ServerResponse, preBody?: unkn
           return candidate;
         }
         if (typeof candidate === "string") {
-          // Could be utf8 text or base64; try base64 first if it looks like it.
           let b: Buffer;
           if (/^[A-Za-z0-9+/]+=*$/.test(candidate) && candidate.length % 4 === 0) {
             b = Buffer.from(candidate, "base64");
@@ -93,7 +83,6 @@ export function ctxFor(req: IncomingMessage, res: ServerResponse, preBody?: unkn
           if (b.length > limit) return null;
           return b;
         }
-        // pre-parsed JSON object → serialize back to a buffer
         const b = Buffer.from(JSON.stringify(candidate), "utf8");
         if (b.length > limit) return null;
         return b;
@@ -135,8 +124,6 @@ export function ctxFor(req: IncomingMessage, res: ServerResponse, preBody?: unkn
 }
 
 function clientIpOf(getHeader: (n: string) => string | null, fallback: string): string {
-  // Vercel provides the client ip directly; trust it — Vercel is the edge TLS
-  // terminator and strips forged client headers.
   const forwardedFor = getHeader("x-vercel-forwarded-for") ?? getHeader("x-forwarded-for");
   if (forwardedFor) return forwardedFor.split(",")[0]!.trim();
   return fallback || "0.0.0.0";
@@ -146,14 +133,10 @@ function _readBody(req: IncomingMessage, limit: number): Promise<Buffer | null> 
   const len = Number(req.headers["content-length"] ?? 0);
   if (len > limit) return Promise.resolve(null);
 
-  // Vercel's Node runtime often buffers the request body internally and
-  // exposes it neither via req.body nor as a flowing stream (readableEnded is
-  // already true). Try a synchronous read() first to drain any buffered data.
   const chunks: Buffer[] = [];
   let size = 0;
   let chunk: Buffer | string | null = null;
   try {
-    // eslint-disable-next-line no-cond-assign
     while ((chunk = req.read()) !== null) {
       const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
       size += b.length;
@@ -165,7 +148,6 @@ function _readBody(req: IncomingMessage, limit: number): Promise<Buffer | null> 
   }
   if (chunks.length > 0) return Promise.resolve(Buffer.concat(chunks));
 
-  // Fall back to event-based read with a safety timeout.
   return new Promise((resolve) => {
     const evChunks: Buffer[] = [];
     let evSize = 0;

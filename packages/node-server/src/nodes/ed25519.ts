@@ -1,7 +1,3 @@
-// Ed25519 signature verification for node messages (port of
-// internal/node/ws.go verifySignature). Raw 32-byte keys are wrapped into a
-// DER SPKI via the standard ed25519 OID prefix.
-
 import crypto from "node:crypto";
 
 const RAW_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
@@ -12,7 +8,7 @@ export function verifyNodeSignature(pubKeyHex: string, sigHex: string, payload: 
     const key = Buffer.from(pubKeyHex, "hex");
     const sig = Buffer.from(sigHex, "hex");
     if (key.length !== 32) return false;
-    if (sig.length !== 64) return false; // ed25519 signature is always 64 bytes
+    if (sig.length !== 64) return false;
     const keyObject = crypto.createPublicKey({
       key: Buffer.concat([RAW_SPKI_PREFIX, key]),
       format: "der",

@@ -1,15 +1,3 @@
-// Node registry over Redis (port of internal/node/hub.go + store.go).
-// Memory maps become Redis structures so state survives serverless instance
-// rotation:
-//   node:<id>          hash {token, pubkey, name, firmware, account, createdAt}
-//   acct:<account>     set of node ids owned by that account
-//   online:<id>        string "1", EX nodeOnlineTtl (liveness)
-//   ninfo:<id>         hash {uptime, storage..., repositories JSON}
-//   paircode:<CODE>    hash {id, name, pubkey} EX 600 (pending pairing)
-//   pairbyId:<id>      string CODE (reverse index)
-//   inbox:<id>         list of queued JSON commands
-//   resp:<reqId>       string response JSON, EX 120
-
 import crypto from "node:crypto";
 import type { Redis } from "../redis/index.js";
 import { logError } from "../log.js";
@@ -17,14 +5,7 @@ import { logError } from "../log.js";
 const PAIRING_TTL_SEC = 10 * 60;
 const RESPONSE_TTL_SEC = 120;
 const INBOX_MAX = 64;
-// How long the last-known repo index survives in Strata after a node goes
-// offline. ninfo:<id> itself only lives onlineTtlSec*24 (~36 min), so a
-// disconnected node loses its repo index quickly; this keeps a stale-but-usable
-// copy around so the dashboard/URLs keep working while the node reconnects.
 const REPO_INDEX_TTL_SEC = 30 * 24 * 3600;
-// How long a git repo's files live in Strata (control plane storage). Acts as
-// the primary store for git push/clone so Vercel's 60 s limit and the node's
-// slow polling no longer block git operations.
 const GIT_FILE_TTL_SEC = 30 * 24 * 3600;
 
 export interface RepoEntry {
@@ -58,8 +39,6 @@ export class NodeRegistry {
     private readonly onlineTtlSec: number,
   ) {}
 
-  // ── pairing ────────────────────────────────────────────────────────
-
   /** RPUSHes nothing; stores a pending pairing keyed by its code (TTL 10m). */
   async registerPairing(id: string, code: string, name: string, pubkey: string): Promise<void> {
     const c = normalizeCode(code);
@@ -77,7 +56,6 @@ export class NodeRegistry {
     const raw = await this.redis.get(`paircode:${c}`);
     if (raw === null) return null;
     const pending = JSON.parse(raw) as PendingPairing;
-    // Delete the pending code in parallel with provisioning to save a round trip.
     const [id] = await Promise.all([
       this.provisionNode(pending, account),
       this.redis.del(`paircode:${c}`),
@@ -89,9 +67,6 @@ export class NodeRegistry {
     const { id, name, pubkey } = pending;
     const token = newToken();
     const createdAt = new Date().toISOString();
-    // These writes are independent once the token exists; run them in parallel
-    // to cut Strata round-trips (important on serverless where each command is
-    // an HTTP call to the git-backed store).
     await Promise.all([
       this.redis.hmset(`node:${id}`, { token, pubkey, name, account, createdAt }),
       this.redis.del(`pairbyId:${id}`),
@@ -101,7 +76,6 @@ export class NodeRegistry {
     return id;
   }
 
-  // ── node record ────────────────────────────────────────────────────
 
   async getNode(id: string): Promise<Record<string, string> | null> {
     let rec: Record<string, string> = {};
@@ -135,7 +109,6 @@ export class NodeRegistry {
     if (Object.keys(fields).length > 0) {
       await this.redis.hmset(`node:${id}`, fields).catch((e) => logError(`strata node:${id} write failed: ${e.message}`));
     }
-    // Best-effort liveness write: don't let an upstream rejection fail the poll.
     await this.redis.set(`online:${id}`, "1", "EX", this.onlineTtlSec).catch((e) =>
       logError(`strata online:${id} write failed: ${e.message}`),
     );
@@ -143,8 +116,6 @@ export class NodeRegistry {
   }
 
   async isOnline(id: string): Promise<boolean> {
-    // Fast path: persistent liveness key. Strata reads can time out when
-    // Codeberg is slow; treat a read failure as "unknown" and fall through.
     let exists = false;
     try {
       exists = await this.redis.exists(`online:${id}`);
@@ -152,9 +123,6 @@ export class NodeRegistry {
       exists = false;
     }
     if (exists) return true;
-    // Fallback: the node is online if it recently reported telemetry. This
-    // covers the case where the online:<id> write was rejected upstream but
-    // the node is actively polling.
     let info: Record<string, string> = {};
     try {
       info = (await this.redis.hgetall(`ninfo:${id}`).catch(() => ({} as Record<string, string>))) as Record<string, string>;
@@ -210,8 +178,6 @@ export class NodeRegistry {
     return account;
   }
 
-  // ── telemetry / repo index (ninfo:<id>) ────────────────────────────
-
   async touchTelemetry(
     id: string,
     telemetry: {
@@ -235,8 +201,6 @@ export class NodeRegistry {
   async updateRepos(id: string, repos: RepoEntry[]): Promise<void> {
     const serialized = JSON.stringify(repos);
     await this.redis.hmsetEx(`ninfo:${id}`, this.onlineTtlSec * 24, { repositories: serialized });
-    // Persist a long-lived copy so the repo index survives ninfo expiry while
-    // the node is offline (Strata is git-backed and slow to re-populate).
     await this.redis.set(`repos:${id}`, serialized, "EX", REPO_INDEX_TTL_SEC).catch((e) =>
       logError(`strata repos:${id} write failed: ${e.message}`),
     );
@@ -260,7 +224,6 @@ export class NodeRegistry {
         /* ignore */
       }
     }
-    // Fallback: persistent index written on every repo_list response.
     try {
       const raw = await this.redis.get(`repos:${id}`);
       if (typeof raw === "string" && raw !== "") {
@@ -272,8 +235,6 @@ export class NodeRegistry {
     }
     return [];
   }
-
-  // ── dashboard views ────────────────────────────────────────────────
 
   async nodeView(id: string): Promise<Record<string, unknown>> {
     const [rec0, info, online] = await Promise.all([
@@ -291,7 +252,6 @@ export class NodeRegistry {
       }
     }
     if (repos.length === 0) {
-      // Fallback to the long-lived repo index when ninfo expired (offline).
       try {
         const raw = await this.redis.get(`repos:${id}`);
         if (typeof raw === "string" && raw !== "") {
@@ -336,8 +296,6 @@ export class NodeRegistry {
     return Promise.all(ids.map((id) => this.nodeView(id.slice(5))));
   }
 
-  // ── inbox / RPC plumbing ───────────────────────────────────────────
-
   /** Queues a command for the node's next poll. */
   async pushCommand(id: string, command: { action: string } & Record<string, unknown>): Promise<void> {
     const { req_id = crypto.randomUUID(), action, ...rest } = command;
@@ -362,10 +320,6 @@ export class NodeRegistry {
   pendingCodeFor(id: string): Promise<string | null> {
     return this.redis.get(`pairbyId:${id}`);
   }
-
-  // ── git file storage (Strata-backed, control plane primary store) ──
-  // These let push/clone run against the control plane without depending on
-  // the node's slow per-file RPC.
 
   async setGitFile(owner: string, repo: string, relPath: string, b64: string): Promise<void> {
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -424,15 +378,12 @@ export class NodeRegistry {
   }
 
   async clearGitRepo(owner: string, repo: string): Promise<void> {
-    // Delete by known list first.
     const old = await this.listGitFiles(owner, repo);
     for (const p of old) {
       for (let a = 0; a < 3; a++) {
         try { await this.redis.del(`gitfile:${owner}:${repo}:${p}`); break; } catch { await new Promise((r) => setTimeout(r, 200)); }
       }
     }
-    // Also sweep any stray gitfile: keys (e.g. from a partial/corrupt sync)
-    // using KEYS, so a stale refs/heads/main can't linger.
     try {
       const stray = await this.redis.keys(`gitfile:${owner}:${repo}:*`);
       for (const k of stray) {
