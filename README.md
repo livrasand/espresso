@@ -133,7 +133,7 @@ The deployed control plane lives at:
 |---|-----|------|
 | Web + API | `https://espresso.livrasand.com` | `443` (HTTPS) |
 
-## Telegram bot (optional)
+## <img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="22" height="22" style="vertical-align: middle;" /> Telegram bot (optional)
 
 Control your nodes from Telegram with **@espressoforgebot**:
 
