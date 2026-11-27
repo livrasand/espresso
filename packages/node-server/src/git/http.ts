@@ -194,6 +194,7 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
         nodeId = resolved.id;
       }
       const body = await ctx.bodyBuffer(64 * 1024 * 1024);
+      console.error("[dbg] receive-pack body len=", body ? body.length : null);
       if (body === null) return ctx.json(413, { error: "payload too large" });
       try {
           const out = await runNodeGitPack(callNode, nodeId, repo, "git-receive-pack", body, registry, owner);
