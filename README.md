@@ -2,45 +2,29 @@
 
 <img width="1920" height="877" alt="Espresso Official Website" src="https://github.com/user-attachments/assets/6ec959f9-8dc0-4d2f-9bea-cc79682e50c6" />
 
-Your projects deserve a home of their own.
+### Your code. Your hardware. Your freedom.
 
-Espresso makes self-hosted Git hosting accessible to more people. It brings repository hosting to affordable hardware, so you can keep your projects on your own devices without needing an expensive server or a cloud subscription.
+**What if your Git server could fit in your pocket?**
 
-Because owning your infrastructure shouldn't depend on how much you can afford.
+Espresso brings self-hosted Git hosting to affordable hardware. An ESP32, an SD card, and your own control plane are enough to start building your personal Git infrastructure.
 
-Not everyone can afford a dedicated server, a Raspberry Pi, or monthly cloud hosting. But an ESP32 and an SD card can be a much more accessible place to start.
+No expensive servers. No cloud subscriptions. No publicly exposed storage nodes.
 
-Espresso turns that small device into part of your own Git hosting infrastructure, giving you another way to store and manage your projects.
+- **Affordable self-hosting.** Run Git storage on hardware that costs a fraction of a traditional server.
+- **Your infrastructure, your rules.** Keep your repositories on devices you own and control.
+- **No inbound ports.** Storage nodes connect outward, even behind ordinary home routers.
+- **Private by design.** Account numbers instead of traditional usernames and passwords. Only SHA-256 hashes are stored.
+- **Open and independent.** Build, experiment, extend, and make it your own.
 
-- **Affordable by design.** Start with low-cost hardware instead of a dedicated server.
-- **Your data, your devices.** Keep repository storage on hardware you control.
-- **No server exposed to the internet.** Storage nodes connect outward, without requiring publicly accessible inbound ports.
-- **One place for your projects.** Browse repositories and manage your connected storage nodes through the control plane.
-- **Built for independence.** Reduce your reliance on centralized hosting services and recurring infrastructure costs.
+Espresso separates repository management from storage, making it possible to build a distributed personal Git hosting setup without expensive infrastructure.
 
-Espresso separates the place where you manage your projects from the devices that store them.
+## Self-hosting shouldn't be a luxury.
 
-Your storage nodes can connect to the control plane from behind an ordinary home router, without requiring you to open inbound ports for each node. This makes experimenting with self-hosted Git more accessible, even on modest home networks.
+Espresso is an independent open-source project extracted from [gitGost Forge](https://github.com/livrasand/gitGost), built for developers, students, hobbyists, and anyone who believes access to infrastructure shouldn't depend on their budget.
 
-As the project evolves, Espresso aims to make personal Git infrastructure practical for people who have traditionally been priced out of self-hosting.
+**An ESP32 can be more than a microcontroller. It can be part of your own Git infrastructure.**
 
-## Private by design
-
-Your infrastructure should work for you, not collect information about you.
-
-Espresso uses account numbers instead of traditional usernames and passwords. Your account number is shown only once during registration, and the server stores its SHA-256 hash rather than the original number.
-
-Sessions use signed authentication tokens, and the signing secret is supplied through environment configuration.
-
-**Your account number is your key.** Keep it somewhere safe: you need it to sign in.
-
-## Made for the open-source community
-
-Espresso is an independent open-source project extracted from the [gitGost Forge](https://github.com/livrasand/gitGost) codebase.
-
-It's for developers, students, hobbyists, and anyone who wants more control over where their code lives — regardless of their budget.
-
-Whether you're experimenting with your first Git repository or exploring a different way to host your projects, Espresso is built around one simple idea: self-hosting should be more accessible.
+If you believe in making self-hosting accessible to everyone, give Espresso a ⭐ on GitHub. Every star helps more developers discover the project.
 
 ## Getting started
 

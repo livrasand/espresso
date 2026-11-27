@@ -22,6 +22,10 @@ const INBOX_MAX = 64;
 // disconnected node loses its repo index quickly; this keeps a stale-but-usable
 // copy around so the dashboard/URLs keep working while the node reconnects.
 const REPO_INDEX_TTL_SEC = 30 * 24 * 3600;
+// How long a git repo's files live in Strata (control plane storage). Acts as
+// the primary store for git push/clone so Vercel's 60 s limit and the node's
+// slow polling no longer block git operations.
+const GIT_FILE_TTL_SEC = 30 * 24 * 3600;
 
 export interface RepoEntry {
   name: string;
@@ -357,6 +361,44 @@ export class NodeRegistry {
 
   pendingCodeFor(id: string): Promise<string | null> {
     return this.redis.get(`pairbyId:${id}`);
+  }
+
+  // ── git file storage (Strata-backed, control plane primary store) ──
+  // These let push/clone run against the control plane without depending on
+  // the node's slow per-file RPC.
+
+  async setGitFile(owner: string, repo: string, relPath: string, b64: string): Promise<void> {
+    await this.redis.set(`gitfile:${owner}:${repo}:${relPath}`, b64, "EX", GIT_FILE_TTL_SEC).catch((e) =>
+      logError(`strata gitfile write failed: ${e.message}`),
+    );
+  }
+
+  async getGitFile(owner: string, repo: string, relPath: string): Promise<Buffer | null> {
+    const raw = await this.redis.get(`gitfile:${owner}:${repo}:${relPath}`).catch(() => null);
+    if (typeof raw !== "string" || raw === "") return null;
+    try {
+      return Buffer.from(raw, "base64");
+    } catch {
+      return null;
+    }
+  }
+
+  async setGitFileList(owner: string, repo: string, paths: string[]): Promise<void> {
+    await this.redis.set(`gitfiles:${owner}:${repo}`, JSON.stringify(paths), "EX", GIT_FILE_TTL_SEC).catch((e) =>
+      logError(`strata gitfiles write failed: ${e.message}`),
+    );
+  }
+
+  async listGitFiles(owner: string, repo: string): Promise<string[]> {
+    const raw = await this.redis.get(`gitfiles:${owner}:${repo}`).catch(() => null);
+    if (typeof raw !== "string" || raw === "") return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as string[];
+    } catch {
+      /* ignore */
+    }
+    return [];
   }
 
   async setTelegramChat(chatId: number, account: string): Promise<void> {

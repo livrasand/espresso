@@ -42,6 +42,37 @@ async function syncFromNode(callNode: CallNode, nodeId: string, repo: string, lo
   await walk("", localDir);
 }
 
+async function syncFromStrata(registry: NodeRegistry, owner: string, repo: string, localDir: string): Promise<void> {
+  const paths = await registry.listGitFiles(owner, repo);
+  for (const rel of paths) {
+    const buf = await registry.getGitFile(owner, repo, rel);
+    if (!buf) continue;
+    const full = path.join(localDir, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, buf);
+  }
+}
+
+async function syncToStrata(registry: NodeRegistry, owner: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
+  const paths: string[] = [];
+  function walk(dir: string, prefix: string) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      const rel = prefix === "" ? e.name : `${prefix}/${e.name}`;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        walk(full, rel);
+      } else {
+        const data = fs.readFileSync(full);
+        void registry.setGitFile(owner, repo, rel, data.toString("base64"));
+        paths.push(rel);
+      }
+    }
+  }
+  walk(localDir, "");
+  await registry.setGitFileList(owner, repo, paths);
+}
+
 async function syncToNode(callNode: CallNode, nodeId: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
   // Fire-and-forget: enqueue all writes without waiting for the node's
   // response, so a slow node cannot stall the push. The node processes them
@@ -115,17 +146,30 @@ function runGit(args: string[], cwd: string, input: Buffer): Promise<Buffer> {
 
 export async function runNodeGitPack(
   callNode: CallNode,
-  nodeId: string,
+  nodeId: string | null,
   repo: string,
   service: "git-upload-pack" | "git-receive-pack",
   input: Buffer,
+  registry?: NodeRegistry,
+  owner?: string,
 ): Promise<Buffer> {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "espresso-git-"));
   const repoDir = path.join(tmpRoot, repo);
   try {
     fs.mkdirSync(repoDir, { recursive: true });
     if (service === "git-upload-pack") {
-      await syncFromNode(callNode, nodeId, repo, repoDir);
+      // Prefer Strata (control plane store) for fast, reliable clones.
+      let fromStrata = false;
+      if (registry && owner) {
+        const paths = await registry.listGitFiles(owner, repo);
+        if (paths.length > 0) {
+          await syncFromStrata(registry, owner, repo, repoDir);
+          fromStrata = true;
+        }
+      }
+      if (!fromStrata && nodeId) {
+        await syncFromNode(callNode, nodeId, repo, repoDir);
+      }
     }
     // ensure bare repo config
     if (!fs.existsSync(path.join(repoDir, "HEAD"))) {
@@ -137,12 +181,21 @@ export async function runNodeGitPack(
       : ["receive-pack", "--stateless-rpc", repoDir];
     const output = await runGit(gitArgs, tmpRoot, input);
     if (service === "git-receive-pack") {
-      // Sync within a 45 s budget so the node ends up consistent; if it
-      // exceeds the budget we stop and return success anyway (best effort).
-      try {
-        await syncToNode(callNode, nodeId, repo, repoDir);
-      } catch (e) {
-        console.error("syncToNode failed:", (e as Error).message);
+      // Primary: persist the updated repo to Strata (control plane store) so
+      // clones work regardless of node latency. Best-effort node sync too.
+      if (registry && owner) {
+        try {
+          await syncToStrata(registry, owner, repo, repoDir);
+        } catch (e) {
+          console.error("syncToStrata failed:", (e as Error).message);
+        }
+      }
+      if (nodeId) {
+        try {
+          await syncToNode(callNode, nodeId, repo, repoDir);
+        } catch (e) {
+          console.error("syncToNode failed:", (e as Error).message);
+        }
       }
     }
     return output;

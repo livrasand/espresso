@@ -32,7 +32,7 @@ type Pkg = { t: "s" | "h" | "l" | "se" | "z"; e: number | null; v: unknown };
  * responses, pairing codes, rate limits — is always read fresh because other
  * serverless instances write to them.
  */
-const CACHEABLE_PREFIXES = ["node:", "ninfo:", "repos:", "profile:", "names:"];
+const CACHEABLE_PREFIXES = ["node:", "ninfo:", "repos:", "gitfile:", "gitfiles:", "profile:", "names:"];
 const READ_CACHE_TTL_MS = 3000;
 const KEYS_CACHE_TTL_MS = 5000;
 

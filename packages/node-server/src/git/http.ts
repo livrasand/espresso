@@ -58,22 +58,58 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
       if (service !== "git-upload-pack" && service !== "git-receive-pack") {
         return ctx.status(400);
       }
-      const resolved = await resolveNode(ctx, owner, repo);
-      if (resolved === null) return ctx.json(404, { error: "repo not found" });
-      if (resolved.offline) return ctx.json(503, { error: "node offline" });
-      const nodeId = resolved.id;
-
+      // Prefer Strata (control plane store) for refs so clones work even when
+      // the node is busy or offline.
       let refs: string[] = [];
+      let fromStrata = false;
       try {
-        const resp = await callNode(nodeId, "refs_list", { repo });
-        if (Array.isArray(resp["refs"])) refs = resp["refs"] as string[];
-        else if (Array.isArray(resp["branches"])) {
-          // fallback: build refs from branches/tags
-          for (const b of resp["branches"] as string[]) refs.push(`refs/heads/${b}`);
-          for (const t of (resp["tags"] as string[]) ?? []) refs.push(`refs/tags/${t}`);
+        const paths = await registry.listGitFiles(owner, repo);
+        if (paths.length > 0) {
+          fromStrata = true;
+          // Read each ref file to get its sha.
+          for (const p of paths) {
+            if (p === "HEAD") continue;
+            if (!p.startsWith("refs/")) continue;
+            const buf = await registry.getGitFile(owner, repo, p);
+            if (!buf) continue;
+            const sha = buf.toString("utf8").trim().split(/\s+/)[0];
+            if (sha && sha.length >= 7) refs.push(`${sha} ${p}`);
+            else refs.push(p);
+          }
+          // Ensure HEAD advertised.
+          const headBuf = await registry.getGitFile(owner, repo, "HEAD");
+          if (headBuf) {
+            const m = headBuf.toString("utf8").match(/ref:\s*(.+)/);
+            if (m) {
+              const target = m[1]!.trim();
+              const targetBuf = await registry.getGitFile(owner, repo, target);
+              const sha = targetBuf ? targetBuf.toString("utf8").trim().split(/\s+/)[0] : "0".repeat(40);
+              if (sha && sha.length >= 7 && !refs.some((r) => r.includes(target))) {
+                refs.unshift(`${sha} ${target}`);
+              }
+            }
+          }
         }
       } catch {
-        return ctx.json(502, { error: "node rpc failed" });
+        fromStrata = false;
+      }
+
+      let nodeId: string | null = null;
+      if (!fromStrata) {
+        const resolved = await resolveNode(ctx, owner, repo);
+        if (resolved === null) return ctx.json(404, { error: "repo not found" });
+        if (resolved.offline) return ctx.json(503, { error: "node offline" });
+        nodeId = resolved.id;
+        try {
+          const resp = await callNode(nodeId, "refs_list", { repo });
+          if (Array.isArray(resp["refs"])) refs = resp["refs"] as string[];
+          else if (Array.isArray(resp["branches"])) {
+            for (const b of resp["branches"] as string[]) refs.push(`refs/heads/${b}`);
+            for (const t of (resp["tags"] as string[]) ?? []) refs.push(`refs/tags/${t}`);
+          }
+        } catch {
+          return ctx.json(502, { error: "node rpc failed" });
+        }
       }
 
       const isUpload = service === "git-upload-pack";
@@ -119,14 +155,18 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
       if (!m) return ctx.status(404);
       const owner = decodeURIComponent(m[1]!);
       const repo = decodeURIComponent(m[2]!);
-      const resolved = await resolveNode(ctx, owner, repo);
-      if (resolved === null) return ctx.json(404, { error: "repo not found" });
-      if (resolved.offline) return ctx.json(503, { error: "node offline" });
-      const nodeId = resolved.id;
-       const body = await ctx.bodyBuffer(64 * 1024 * 1024);
-       if (body === null) return ctx.json(413, { error: "payload too large" });
-       try {
-         const out = await runNodeGitPack(callNode, nodeId, repo, "git-upload-pack", body);
+      const strataFiles = await registry.listGitFiles(owner, repo).catch(() => [] as string[]);
+      let nodeId: string | null = null;
+      if (strataFiles.length === 0) {
+        const resolved = await resolveNode(ctx, owner, repo);
+        if (resolved === null) return ctx.json(404, { error: "repo not found" });
+        if (resolved.offline) return ctx.json(503, { error: "node offline" });
+        nodeId = resolved.id;
+      }
+      const body = await ctx.bodyBuffer(64 * 1024 * 1024);
+      if (body === null) return ctx.json(413, { error: "payload too large" });
+      try {
+          const out = await runNodeGitPack(callNode, nodeId, repo, "git-upload-pack", body, registry, owner);
          ctx.setHeader("Cache-Control", "no-cache");
          ctx.raw(200, "application/x-git-upload-pack-result", out);
        } catch (e) {
@@ -145,14 +185,18 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
       if (!m) return ctx.status(404);
       const owner = decodeURIComponent(m[1]!);
       const repo = decodeURIComponent(m[2]!);
-      const resolved = await resolveNode(ctx, owner, repo);
-      if (resolved === null) return ctx.json(404, { error: "repo not found" });
-      if (resolved.offline) return ctx.json(503, { error: "node offline" });
-      const nodeId = resolved.id;
-       const body = await ctx.bodyBuffer(64 * 1024 * 1024);
-       if (body === null) return ctx.json(413, { error: "payload too large" });
-       try {
-         const out = await runNodeGitPack(callNode, nodeId, repo, "git-receive-pack", body);
+      const strataFiles = await registry.listGitFiles(owner, repo).catch(() => [] as string[]);
+      let nodeId: string | null = null;
+      if (strataFiles.length === 0) {
+        const resolved = await resolveNode(ctx, owner, repo);
+        if (resolved === null) return ctx.json(404, { error: "repo not found" });
+        if (resolved.offline) return ctx.json(503, { error: "node offline" });
+        nodeId = resolved.id;
+      }
+      const body = await ctx.bodyBuffer(64 * 1024 * 1024);
+      if (body === null) return ctx.json(413, { error: "payload too large" });
+      try {
+          const out = await runNodeGitPack(callNode, nodeId, repo, "git-receive-pack", body, registry, owner);
          ctx.setHeader("Cache-Control", "no-cache");
          ctx.raw(200, "application/x-git-receive-pack-result", out);
        } catch (e) {
