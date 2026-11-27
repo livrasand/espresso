@@ -241,8 +241,6 @@ export class StrataBackend implements RedisLike {
       }
 
       case "HMSETEX": {
-        // ["HMSETEX", key, ttlSec, field, value, ...] — HMSET + EXPIRE in one
-        // read-modify-write (the expiry used to cost a second round trip).
         const k = String(key);
         const ttl = Number(args[0]);
         const existing = await this.read(k, true);
@@ -254,9 +252,6 @@ export class StrataBackend implements RedisLike {
       }
 
       case "ZWINDOW": {
-        // ["ZWINDOW", key, nowMs, member, windowMs] — sliding-window hit:
-        // prune old entries, add this one, return the count. One read + one
-        // write instead of ZADD+ZREMRANGEBYSCORE+EXPIRE+ZCARD (7 requests).
         const k = String(key);
         const now = Number(args[0]);
         const member = String(args[1]);
@@ -309,7 +304,6 @@ export class StrataBackend implements RedisLike {
       }
 
       case "LPOP": {
-        // ["LPOP", key, count] → array, ["LPOP", key] → single item / null
         const k = String(key);
         const pkg = await this.read(k, true);
         if (!pkg || !Array.isArray(pkg.v) || (pkg.v as string[]).length === 0) {

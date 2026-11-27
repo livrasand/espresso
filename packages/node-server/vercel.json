@@ -10,6 +10,10 @@
   },
   "rewrites": [
     {
+      "source": "/debug/:path*",
+      "destination": "/api/main"
+    },
+    {
       "source": "/login",
       "destination": "/auth"
     },

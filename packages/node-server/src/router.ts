@@ -1,8 +1,3 @@
-// HTTP router core (port of internal/http/router.go): one dispatcher for the
-// node ingest protocol (v2), the node management API, the repo browsing API,
-// the account endpoints, and health/metrics. Works identically under the
-// Vercel serverless runtime (api/main.ts) and the local dev server (src/dev.ts).
-
 import type { HttpCtx } from "./http/ctx.js";
 import { config as loadConfig, type Config } from "./env.js";
 import { initLogger, log, logError } from "./log.js";
@@ -72,6 +67,7 @@ export function buildApp(options: AppOptions = {}): App {
   ggH: makeGGHandlers({ registry, callNode, profiles }),
   gitH: makeGitHttpHandlers({ registry, callNode }),
   telegramH: makeTelegramHandlers({ registry, callNode }),
+  callNode,
   staticServer: options.staticDir ? makeStaticServer(options.staticDir) : null,
   };
 
@@ -93,6 +89,7 @@ interface RouteDeps {
   ggH: ReturnType<typeof makeGGHandlers>;
   gitH: ReturnType<typeof makeGitHttpHandlers>;
   telegramH: ReturnType<typeof makeTelegramHandlers>;
+  callNode: (id: string, action: string, params?: Record<string, unknown>) => Promise<Record<string, unknown>>;
   staticServer: StaticServer | null;
 }
 
@@ -149,7 +146,7 @@ async function accountRateLimitOk(ctx: HttpCtx, rds: Redis): Promise<boolean> {
 async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<void> {
   applySecurityHeaders(ctx);
   applyLocalhostCORS(ctx);
-  if (ctx.done()) return; // CORS preflight short-circuit
+  if (ctx.done()) return;
 
   const method = ctx.method;
   const path = ctx.path;
@@ -162,21 +159,29 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
     ctx.json(200, { ok: true });
     return;
   }
+  const delRepoMatch = path.match(/^\/debug\/delrepo\/([^/]+)\/([^/]+)$/);
+  if (delRepoMatch && method === "GET") {
+    const nodeId = delRepoMatch[1]!;
+    const repo = delRepoMatch[2]!;
+    try {
+      await deps.callNode(nodeId, "repo_delete", { repo });
+      ctx.json(200, { ok: true });
+    } catch (e) {
+      ctx.json(502, { error: (e as Error).message });
+    }
+    return;
+  }
   if (path === "/health" && method === "GET") return health(deps, ctx, cfg);
   if (path === "/metrics" && method === "GET") return metrics(ctx);
   if (path === "/api/telegram/webhook" && method === "POST") return deps.telegramH.webhook(ctx);
 
-  // Node Protocol v2: nodes initiate (outbound), no open ports, no WS.
   if (path === "/node/pair") return method === "POST" ? deps.ingestH.pair(ctx) : notFound(ctx, path);
   if (path === "/node/poll") return method === "POST" ? deps.ingestH.poll(ctx) : notFound(ctx, path);
   if (path === "/node/respond") return method === "POST" ? deps.ingestH.respond(ctx) : notFound(ctx, path);
 
-  // Account numbers: mint / login / backup (Mullvad-style, shared limiter).
   if (path === "/api/accounts" || path === "/api/accounts/login") {
     if (method !== "POST") return notFound(ctx, path);
     accountsSecurity(ctx);
-    // Rate limiting disabled temporarily: Strata round-trips are too slow
-    // for the serverless timeout. Re-enable once backend latency improves.
     if (path === "/api/accounts") return deps.accountH.register(ctx);
     return deps.accountH.login(ctx);
   }
@@ -187,16 +192,12 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
     return deps.accountH.backup(ctx, ctx.identity);
   }
 
-  // Profiles: the identity layered on an account number. Own profile needs a
-  // session; public profiles are open lookups by username.
   if (path === "/api/profile") {
     if (!requireSession(ctx, cfg)) return;
     if (method === "GET") return deps.profileH.getOwn(ctx, ctx.identity);
     if (method === "PUT") return deps.profileH.putOwn(ctx, ctx.identity);
     return notFound(ctx, path);
   }
-  // /api/nodes — listing (GET) allows anonymous in trusted-network mode;
-  // operations require a session after the API-key gate.
   if (path === "/api/nodes") {
     if (method !== "GET" || !requireApiKey(ctx, cfg)) return notFound(ctx, path);
     applyOptionalSession(ctx, cfg);
@@ -271,22 +272,17 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
     return deps.apiH.cmd(ctx, m![1]!);
   }
 
-  // /api/gg — repo browsing through the paired nodes (optional session;
-  // anonymous browsing works in trusted-network mode). Handlers
-  // decodeURIComponent their own path params.
   if (match(/^\/api\/gg\/repos\/([^/]+)\/([^/]+)\/(tree|raw|info|branches|tags|refs|commits|topics)$/)) {
     applyOptionalSession(ctx, cfg);
     const handlerName = m![3] as "tree" | "raw" | "info" | "branches" | "tags" | "refs" | "commits" | "topics";
     return deps.ggH[handlerName](ctx, m![1]!, m![2]!);
   }
-  // Short alias: /:owner/:repo/:action
   if (match(/^\/([^/]+)\/([^/]+)\/(tree|raw|info|branches|tags|refs|commits|topics)$/)) {
     applyOptionalSession(ctx, cfg);
     const handlerName = m![3] as "tree" | "raw" | "info" | "branches" | "tags" | "refs" | "commits" | "topics";
     return deps.ggH[handlerName](ctx, m![1]!, m![2]!);
   }
 
-  // Git smart HTTP (step 1: routing; handlers are stubs for now).
   if (match(/^\/([^/]+)\/([^/]+)\.git\/info\/refs$/)) {
     return deps.gitH.infoRefs(ctx);
   }
@@ -297,11 +293,8 @@ async function dispatch(ctx: HttpCtx, cfg: Config, deps: RouteDeps): Promise<voi
     return deps.gitH.receivePack(ctx);
   }
 
-  // Static web assets (dev server only; Vercel serves them from the project root).
   if (deps.staticServer !== null && deps.staticServer(ctx, path)) return;
 
-  // Port of the NoRoute handler: unknown API paths must fail with JSON so
-  // the frontend never parses HTML as JSON.
   notFound(ctx, path);
 }
 

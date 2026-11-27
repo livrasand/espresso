@@ -1,5 +1,3 @@
-// Session token + rate limiter tests (auth layer, MemoryRedis-backed).
-
 import { describe, it, expect } from "vitest";
 import { MemoryRedis } from "../src/redis/memory.js";
 import { Redis } from "../src/redis/index.js";
@@ -44,7 +42,6 @@ describe("rate limiter", () => {
     expect(await mk()).toBe("allow");
     expect(await mk()).toBe("reject");
     expect(await mk()).toBe("reject");
-    // A different IP is a fresh window.
     expect(
       await consumeRateLimit(rds, { keyPrefix: "account", max: 3, windowMs: 60_000, id: "5.6.7.8" }),
     ).toBe("allow");

@@ -1,7 +1,3 @@
-// Minimal Telegram bot front-end for the Espresso control plane.
-// Receives webhook updates, maps a chat to an Espresso account, and runs the
-// same management actions as the dashboard.
-
 import type { HttpCtx } from "../http/ctx.js";
 import type { NodeRegistry } from "../nodes/registry.js";
 import { safeRepo, normalizeNodeId, isSafeNodeID } from "../nodes/validate.js";
@@ -109,7 +105,6 @@ export function makeTelegramHandlers(deps: Deps) {
       return;
     }
 
-    // ownership check
     const rec = await registry.getNode(nodeId);
     if (!rec || rec["account"] !== account) {
       await reply(chatId, "Node not found or not yours.");

@@ -28,7 +28,7 @@ describe("StrataBackend", () => {
     calls.n = 0;
     expect(await r.hgetall("node:A")).toEqual({ a: "1" });
     expect(await r.hgetall("node:A")).toEqual({ a: "1" });
-    expect(calls.n).toBe(0); // write-through cache
+    expect(calls.n).toBe(0);
   });
 
   it("never caches liveness-style keys", async () => {
