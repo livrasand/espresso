@@ -1,6 +1,3 @@
-// Local development server: same router as the serverless entry point,
-// on top of plain node:http, serving the web/ UI from the repo root.
-
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 import path from "node:path";

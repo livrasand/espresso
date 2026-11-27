@@ -1,7 +1,3 @@
-// Account handlers (port of internal/http/accounts.go): POST /api/accounts
-// (mint), /api/accounts/login, /api/accounts/backup. Mullvad-style: the
-// number is the sole credential.
-
 import type { HttpCtx } from "../http/ctx.js";
 import type { AccountStore } from "./store.js";
 import { issueSessionToken } from "../auth/session.js";
@@ -13,7 +9,7 @@ const MAX_ACCOUNT_BODY = 16 * 1024;
 export function accountsSecurity(ctx: HttpCtx): boolean {
   ctx.setHeader("Cache-Control", "no-store");
   ctx.setHeader("Pragma", "no-cache");
-  return true; // body size enforced when reading below
+  return true;
 }
 
 export function makeAccountHandlers(store: AccountStore, cfg: Config) {

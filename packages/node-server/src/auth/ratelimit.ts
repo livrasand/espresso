@@ -1,7 +1,3 @@
-// Per-IP rate limiting, Redis-backed sliding window (port of
-// prCheckWindowLimiter from internal/http/helpers.go, now Redis-based since
-// serverless instances cannot share in-memory state).
-
 import type { Redis } from "../redis/index.js";
 
 export interface RateLimitOptions {

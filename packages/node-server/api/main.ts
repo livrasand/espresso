@@ -1,14 +1,8 @@
-// Vercel serverless entry point: static assets are served by the platform,
-// every dynamic route is rewritten here (see vercel.json). One handler for
-// /api/*, /node/*, /health and /metrics keeps the routing identical to dev.
-
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ctxFor } from "../src/http/ctx.js";
 import { buildApp } from "../src/router.js";
 import { logError } from "../src/log.js";
 
-// Module-level init: reused across warm lambda invocations (secrets,
-// Redis client, router wiring).
 const app = buildApp();
 
 export const config = { maxDuration: 60 };

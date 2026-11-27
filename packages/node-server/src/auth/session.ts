@@ -1,7 +1,3 @@
-// Session tokens (port of internal/http/accounts.go). Same wire format the
-// Go version issued: `identity.expiryUnix.base64url(HMAC-SHA256)`, delivered
-// via the X-ZKP-Token header.
-
 import crypto from "node:crypto";
 import { timingSafeEqual } from "node:crypto";
 

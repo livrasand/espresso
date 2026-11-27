@@ -54,10 +54,9 @@ async function syncFromStrata(registry: NodeRegistry, owner: string, repo: strin
 }
 
 async function syncToStrata(registry: NodeRegistry, owner: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
-  // Clear any stale/partial Strata data first.
-  await registry.clearGitRepo(owner, repo).catch(() => {});
-  // Collect all files into memory first (fast, no I/O to Strata), so the
-  // temp dir is no longer needed afterwards.
+  // Clear stale Strata data first (fire-and-forget).
+  void registry.clearGitRepo(owner, repo).catch(() => {});
+  // Collect all files into memory first (fast, no I/O to Strata).
   const collected: { rel: string; b64: string }[] = [];
   function walk(dir: string, prefix: string) {
     let entries: fs.Dirent[];
@@ -79,7 +78,9 @@ async function syncToStrata(registry: NodeRegistry, owner: string, repo: string,
   }
   walk(localDir, "");
   const paths = collected.map((c) => c.rel);
-  const deadline = Date.now() + 45000;
+  // Await Strata writes (in-memory data, no temp dir needed) with a 15 s
+  // budget so they complete within Vercel's lifetime.
+  const deadline = Date.now() + 15000;
   try {
     for (const c of collected) {
       if (Date.now() > deadline) {

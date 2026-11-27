@@ -87,8 +87,6 @@
     } catch (e) { btn.textContent = 'Error'; }
   }
 
-  // Run async jobs with bounded concurrency: each repo detail is an RPC to a
-  // small ESP32, so firing them all at once just queues them on the device.
   function createLimiter(max) {
     let active = 0;
     const queue = [];
@@ -260,7 +258,7 @@
       try {
         const base = '/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo);
         const r = await getJson(base + '/refs');
-        if (state.selected !== nodeId || !detail.isConnected) return; // user moved on
+        if (state.selected !== nodeId || !detail.isConnected) return;
         renderRefs(
           detail,
           Array.isArray(r && r.branches) ? r.branches : [],
@@ -276,9 +274,6 @@
       }
     }
     if (state.selected !== nodeId || !detail.isConnected) return;
-    // Refs could not be fetched (node busy/offline or storage degraded), but
-    // the repo still exists: always show how to access it instead of a dead
-    // "unavailable" chip.
     renderRefs(detail, [], [], [], repo, lastErr);
   }
 
@@ -306,7 +301,7 @@
     el.repolistEmpty.hidden = true;
     try {
       const data = await getJson('/api/nodes/' + encodeURIComponent(id) + '/repos');
-      if (state.selected !== id) return; // a newer selection superseded this one
+      if (state.selected !== id) return;
       renderRepos(data && data.repositories);
       setStatus('');
     } catch (e) {
@@ -407,7 +402,6 @@
         if (!res.ok) throw new Error((body && body.error) || 'delete failed (' + res.status + ')');
         overlay.remove();
         setStatus('Node ' + label + ' deleted.');
-        // If we removed the selected node, fall back to another node or clear.
         if (state.selected === nodeId) {
           const remaining = state.nodes.filter((n) => n.id !== nodeId);
           state.nodes = remaining;
@@ -483,7 +477,6 @@
       if (el.pairCode) el.pairCode.value = '';
       if (el.pairNodeId) el.pairNodeId.value = '';
       await loadNodes();
-      // Poll briefly (node list only) until the newly paired node is online.
       clearInterval(pairPoll);
       let tries = 0;
       pairPoll = setInterval(async () => {
@@ -534,7 +527,6 @@
   }
   if (el.createRepoForm) el.createRepoForm.addEventListener('submit', (ev) => { ev.preventDefault(); createRepo(); });
   if (el.createRepoSubmit) el.createRepoSubmit.addEventListener('click', createRepo);
-  // ── Session token modal: show / copy / regenerate ──────────────────
   function openCreateRepoModal() {
     if (el.createRepoModal) el.createRepoModal.hidden = false;
     if (el.createRepoName) el.createRepoName.focus();
@@ -578,7 +570,6 @@
       if (el.createRepoSubmit) el.createRepoSubmit.disabled = false;
     }
   }
-  // ── Session token modal: show / copy / regenerate ──────────────────
   function setTokenStatus(msg, isError) {
     if (el.tokenStatus) {
       el.tokenStatus.textContent = msg || '';
@@ -641,7 +632,6 @@
       await navigator.clipboard.writeText(token);
       setTokenStatus('Token copied to clipboard.');
     } catch {
-      // Clipboard API may fail on insecure contexts; fall back to selection.
       if (el.tokenValue) {
         const range = document.createRange();
         range.selectNodeContents(el.tokenValue);

@@ -49,9 +49,6 @@
     });
   }
 
-  // Compact session account used on pages without their own account logic:
-  // a "Sign in" link when browsing as a guest, or the account number with a
-  // Sign out menu when authenticated.
   function sessionAccount() {
     var s = (window.EspressoAuth && window.EspressoAuth.session()) || {};
     if (s.token && s.account) {

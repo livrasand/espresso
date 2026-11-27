@@ -1,5 +1,3 @@
-// Environment configuration for the Espresso control plane.
-
 export interface Config {
   /** Strata KV store (git-backed). URL + API token; unset → in-memory dev store. */
   strata: {
@@ -33,10 +31,6 @@ function loadSecret(): Buffer {
     if (hex.length >= 32) return hex.subarray(0, 32);
     return Buffer.from(raw.padEnd(32, "0"), "utf8").subarray(0, 32);
   }
-  // Serverless-safe fallback: derive a stable secret deterministically so
-  // that every instance agrees on the signing key even when SESSION_SECRET
-  // is not configured. This keeps session tokens valid across cold starts
-  // (a random per-instance key would invalidate every token on rotation).
   return crypto.createHash("sha256").update("espresso-dev-session-secret").digest();
 }
 
@@ -50,11 +44,6 @@ export function config(): Config {
     strata: {
       url: env("STRATA_URL"),
       token: env("STRATA_TOKEN"),
-      // Cap each Strata round trip well under Vercel's 60 s maxDuration so a
-      // hung upstream (Strata → Codeberg) fails fast and the function returns
-      // before the platform kills it. A single /node/poll chains several
-      // sequential Strata ops, so the per-op budget must be a fraction of 60 s;
-      // 20 s matches Codeberg's own per-request timeout.
       timeoutMs: Math.max(1000, Number(env("STRATA_TIMEOUT_MS") ?? "20000") || 20000),
     },
     secret: loadSecret(),

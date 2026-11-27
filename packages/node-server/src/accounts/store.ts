@@ -1,6 +1,3 @@
-// Account registry (port of internal/accounts/store.go) with Redis instead
-// of SQLite. Only SHA-256 hashes of account numbers are stored.
-
 import crypto from "node:crypto";
 import type { Redis } from "../redis/index.js";
 
@@ -33,7 +30,6 @@ export class AccountStore {
   }
 }
 
-// Uniformly random 16-digit number with no leading zero: [10^15, 10^16).
 function generateAccountNumber(): string {
   const min = 10n ** 15n;
   const span = 9n * 10n ** 15n;

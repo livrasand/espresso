@@ -1,5 +1,3 @@
-// Git smart HTTP handlers (step 2: info/refs).
-
 import type { HttpCtx } from "../http/ctx.js";
 import type { ApiDeps } from "../nodes/api.js";
 import type { NodeRegistry } from "../nodes/registry.js";
@@ -127,7 +125,7 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
         ? "multi_ack multi_ack_detailed thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not allow-tip-sha1-in-want allow-reachable-sha1-in-want no-progress include-tag"
         : "report-status delete-refs side-band-64k ofs-delta";
       let first = true;
-      // We don't have sha per ref from refs_list maybe; use zeros placeholder? 
+      // We don't have sha per ref from refs_list maybe; use zeros placeholder?
       // For correctness, need sha. If refs are like "refs/heads/main" without sha, skip.
       for (const r of refs) {
         // expect "sha refname" or just refname

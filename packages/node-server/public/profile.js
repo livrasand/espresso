@@ -407,7 +407,6 @@
         if (el.editToggle) el.editToggle.hidden = false;
         loadActivity(body.profile.username);
       } else {
-        // No profile yet: show hero create card
         state.profile = { username: body.suggested_username || '', display_name: '', bio: '', avatar: '', created_at: '' };
         if (el.layout) el.layout.hidden = true;
         if (el.guest) el.guest.hidden = true;
@@ -488,14 +487,12 @@
     if (el.form) el.form.addEventListener('submit', saveProfile);
     if (el.copyLink) el.copyLink.addEventListener('click', copyProfileUrl);
 
-    // Click avatar on rail to edit if own profile
     if (el.avatarTrigger) {
       el.avatarTrigger.addEventListener('click', function () {
         if (state.mine) openEditor();
       });
     }
 
-    // Live avatar preview in editor
     if (el.inputAvatar) {
       el.inputAvatar.addEventListener('input', updateLiveAvatar);
     }
@@ -503,12 +500,10 @@
       el.inputDisplay.addEventListener('input', updateLiveAvatar);
     }
 
-    // Bio character counter
     if (el.inputBio) {
       el.inputBio.addEventListener('input', updateBioCount);
     }
 
-    // Keyboard navigation (Esc to close editor, Cmd+Enter to submit)
     document.addEventListener('keydown', function (ev) {
       if (ev.key === 'Escape' && el.editor && !el.editor.hidden) {
         closeEditor();
