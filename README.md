@@ -8,8 +8,6 @@ Espresso makes self-hosted Git hosting accessible to more people. It brings repo
 
 Because owning your infrastructure shouldn't depend on how much you can afford.
 
-## Your projects. Your hardware.
-
 Not everyone can afford a dedicated server, a Raspberry Pi, or monthly cloud hosting. But an ESP32 and an SD card can be a much more accessible place to start.
 
 Espresso turns that small device into part of your own Git hosting infrastructure, giving you another way to store and manage your projects.
@@ -19,8 +17,6 @@ Espresso turns that small device into part of your own Git hosting infrastructur
 - **No server exposed to the internet.** Storage nodes connect outward, without requiring publicly accessible inbound ports.
 - **One place for your projects.** Browse repositories and manage your connected storage nodes through the control plane.
 - **Built for independence.** Reduce your reliance on centralized hosting services and recurring infrastructure costs.
-
-## Small hardware. Bigger possibilities.
 
 Espresso separates the place where you manage your projects from the devices that store them.
 
@@ -40,7 +36,7 @@ Sessions use signed authentication tokens, and the signing secret is supplied th
 
 ## Made for the open-source community
 
-Espresso is an independent open-source project extracted from the gitGost Forge codebase.
+Espresso is an independent open-source project extracted from the [gitGost Forge](https://github.com/livrasand/gitGost) codebase.
 
 It's for developers, students, hobbyists, and anyone who wants more control over where their code lives — regardless of their budget.
 
@@ -155,12 +151,6 @@ Control your nodes from Telegram with **@espressoforgebot**:
 ## Hardware
 
 Tested targets: ESP32. Test reports for other ESP32 variants are very welcome!
-
----
-
-**Espresso**
-
-*Your code. Your hardware. Your home.*
 
 ---
 

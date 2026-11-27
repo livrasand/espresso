@@ -42,44 +42,39 @@ async function syncFromNode(callNode: CallNode, nodeId: string, repo: string, lo
   await walk("", localDir);
 }
 
-async function syncToNode(callNode: CallNode, nodeId: string, repo: string, localDir: string, relPrefix = "", deadline = Date.now() + 45000): Promise<void> {
-  if (Date.now() > deadline) return;
-  // Skip non-essential paths to keep the sync small enough for Vercel's 60 s
-  // limit (the node polls every few seconds, so each RPC costs a round trip).
+async function syncToNode(callNode: CallNode, nodeId: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
+  // Fire-and-forget: enqueue all writes without waiting for the node's
+  // response, so a slow node cannot stall the push. The node processes them
+  // over its next poll cycles.
   const skipDirs = new Set(["hooks", "info"]);
   const skipFiles = new Set(["description"]);
-  const entries = fs.readdirSync(localDir, { withFileTypes: true });
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(localDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
   for (const e of entries) {
-    if (Date.now() > deadline) {
-      console.error("syncToNode: deadline exceeded, stopping");
-      return;
-    }
     const rel = relPrefix === "" ? e.name : `${relPrefix}/${e.name}`;
     const full = path.join(localDir, e.name);
     if (e.isDirectory()) {
       if (skipDirs.has(e.name)) continue;
-      try { await callNode(nodeId, "fs_mkdir", { repo, path: rel }); } catch { /* exists */ }
-      await syncToNode(callNode, nodeId, repo, full, rel, deadline);
+      void callNode(nodeId, "fs_mkdir", { repo, path: rel }).catch(() => { /* exists */ });
+      await syncToNode(callNode, nodeId, repo, full, rel);
     } else {
       if (skipFiles.has(e.name)) continue;
       const data = fs.readFileSync(full);
       const chunkSize = 8192;
       let offset = 0;
       while (offset < data.length) {
-        if (Date.now() > deadline) {
-          console.error("syncToNode: deadline exceeded, stopping");
-          return;
-        }
         const chunk = data.subarray(offset, Math.min(offset + chunkSize, data.length));
-        try {
-          await callNode(nodeId, "fs_write", { repo, path: rel, offset, data: chunk.toString("base64") });
-        } catch (err) {
-          console.error("syncToNode write failed:", (err as Error).message, rel);
-        }
+        void callNode(nodeId, "fs_write", { repo, path: rel, offset, data: chunk.toString("base64") }).catch((err) =>
+          console.error("syncToNode write failed:", (err as Error).message, rel),
+        );
         offset += chunk.length;
       }
       if (data.length === 0) {
-        await callNode(nodeId, "fs_write", { repo, path: rel, offset: 0, data: "" }).catch(() => {});
+        void callNode(nodeId, "fs_write", { repo, path: rel, offset: 0, data: "" }).catch(() => {});
       }
     }
   }
@@ -145,7 +140,7 @@ export async function runNodeGitPack(
       // Sync within a 45 s budget so the node ends up consistent; if it
       // exceeds the budget we stop and return success anyway (best effort).
       try {
-        await syncToNode(callNode, nodeId, repo, repoDir, "", Date.now() + 45000);
+        await syncToNode(callNode, nodeId, repo, repoDir);
       } catch (e) {
         console.error("syncToNode failed:", (e as Error).message);
       }
