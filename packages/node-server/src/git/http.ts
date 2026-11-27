@@ -123,7 +123,7 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
       body += "0000";
       // refs with capabilities on first line
       const caps = isUpload
-        ? "multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not allow-tip-sha1-in-want allow-reachable-sha1-in-want no-progress include-tag"
+        ? "multi_ack multi_ack_detailed thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not allow-tip-sha1-in-want allow-reachable-sha1-in-want no-progress include-tag"
         : "report-status delete-refs side-band-64k ofs-delta";
       let first = true;
       // We don't have sha per ref from refs_list maybe; use zeros placeholder? 
