@@ -397,6 +397,9 @@ export class NodeRegistry {
     for (let a = 0; a < 3; a++) {
       try { await this.redis.del(`gitfiles:${owner}:${repo}`); break; } catch { await new Promise((r) => setTimeout(r, 200)); }
     }
+    for (let a = 0; a < 3; a++) {
+      try { await this.redis.del(`gitrepo:${owner}:${repo}`); break; } catch { await new Promise((r) => setTimeout(r, 200)); }
+    }
   }
 
   async setTelegramChat(chatId: number, account: string): Promise<void> {

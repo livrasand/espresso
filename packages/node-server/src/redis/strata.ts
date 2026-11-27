@@ -1,27 +1,3 @@
-// Strata (git-backed KV, github.com/livrasand/Strata) as a backend for the
-// Redis command layer. Strata only exposes a flat REST KV — GET/PUT/DELETE
-// /kv/:key, GET /keys, Bearer auth — so the Redis surface Espresso needs is
-// emulated on top of it:
-//
-//   string  → stored verbatim inside the value envelope
-//   hash    → object  field → string
-//   list    → array   of strings
-//   set     → array   of strings (deduped)
-//   zset    → object  member → score
-//
-// Every value is wrapped in an envelope {t, e, v} (type, expiry-ms, payload)
-// so TTL semantics (EXPIRE / TTL / expired EXISTS) survive round-trips even
-// though Strata never says how long a key has left. The envelope's expiry
-// also becomes Strata's native `ttl` on PUT so the server self-expires the
-// entry commit-side too. Payloads are serialized as JSON strings before PUT
-// so storage never has to round-trip non-string values.
-//
-// Trade-off accepted by design: Redis structures become read-modify-write
-// JSON ops, so concurrent HSET/RPUSH/LPOP on the same key race to
-// last-write-wins. Strata itself guarantees no lost writes on the commit it
-// receives; the race window is the same kind a multi-instance serverless
-// deployment already tolerates.
-
 import type { RedisLike, RedisReply } from "./index.js";
 
 type Pkg = { t: "s" | "h" | "l" | "se" | "z"; e: number | null; v: unknown };
@@ -47,8 +23,6 @@ export class StrataBackend implements RedisLike {
     private readonly timeoutMs = 10000,
   ) {}
 
-  // ── HTTP plumbing ─────────────────────────────────────────────────────
-
   /**
    * fetch with a hard per-request timeout. Without this, a hung upstream
    * (Strata waiting on its git host) stalls the lambda until the platform
@@ -56,10 +30,6 @@ export class StrataBackend implements RedisLike {
    * 60 s on POST /api/accounts.
    */
   private async http(url: string, init: RequestInit = {}): Promise<Response> {
-    // Disable keep-alive: Vercel's Node serverless runtime waits for the event
-    // loop to drain before finalising an invocation, and pooled sockets would
-    // otherwise keep the lambda alive until maxDuration (observed as 60s
-    // timeouts on /node/pair and /api/nodes/pair).
     const headers = { ...(init.headers as Record<string, string> | undefined), Connection: "close" };
     return fetch(url, {
       ...init,
@@ -75,10 +45,6 @@ export class StrataBackend implements RedisLike {
    * caller surfaces the error instead.
    */
   private async httpGet(url: string): Promise<Response> {
-    // A single attempt: retrying a timed-out Strata read stacks a second
-    // (possibly 20s) round trip on top of the first and is what pushed
-    // /node/poll past Vercel's 60s maxDuration. Surface the timeout to the
-    // caller instead of amplifying it.
     return this.http(url, { headers: this.headers() });
   }
 
@@ -89,9 +55,6 @@ export class StrataBackend implements RedisLike {
   }
 
   private pathKey(k: string): string {
-    // ":" is legal and unambiguous in a URL path and Strata keys rely on it
-    // (e.g. "session:9f2c"), so keep it unencoded while escaping slashes
-    // and other path-hostile characters.
     return encodeURIComponent(k).replace(/%3A/g, ":");
   }
 
@@ -149,9 +112,6 @@ export class StrataBackend implements RedisLike {
 
   private invalidate(k: string): void {
     this.cache.delete(k);
-    // Only node records change the key set that KEYS("node:*") reports;
-    // liveness/telemetry/inbox writes do not, so leave the keys cache intact
-    // for those to avoid forcing an expensive journal scan on every poll.
     if (k.startsWith("node:")) this.keysCache = null;
   }
 
@@ -162,7 +122,6 @@ export class StrataBackend implements RedisLike {
     if (exp !== null) {
       const ttlSec = Math.ceil((exp - Date.now()) / 1000);
       if (ttlSec <= 0) {
-        // Already expired — deleting is the equivalent write
         try {
           await this.http(this.kvPath(k), { method: "DELETE", headers: this.headers() });
         } catch {
@@ -180,7 +139,6 @@ export class StrataBackend implements RedisLike {
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`strata PUT ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`);
-    // Write-through so this instance sees its own write immediately.
     if (StrataBackend.cacheable(k)) this.cache.set(k, { raw: serialized, at: Date.now() });
   }
 
@@ -213,8 +171,6 @@ export class StrataBackend implements RedisLike {
     return { v: Number(s), exclusive: false };
   }
 
-  // ── Redis command interpreter ────────────────────────────────────────
-
   async exec(command: (string | number)[]): Promise<RedisReply> {
     const [opRaw, key, ...args] = command;
     const op = String(opRaw).toUpperCase();
@@ -226,7 +182,6 @@ export class StrataBackend implements RedisLike {
       }
 
       case "SET": {
-        // ["SET", key, value, ...opts] — args[0] is always the value.
         const k = String(key);
         let nx = false;
         let exSec: number | null = null;

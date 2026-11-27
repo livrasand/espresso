@@ -1,14 +1,8 @@
-// Compatible data store layer. With STRATA_* env: Strata (git-backed KV).
-// Locally (no STRATA_* env): an in-memory fallback so `npm run dev`
-// works out of the box without external services.
-
 export type RedisReply = string | string[] | number | null | Record<string, unknown>;
 
 export interface RedisLike {
   exec(command: (string | number)[]): Promise<RedisReply>;
 }
-
-// ── Convenience wrappers ─────────────────────────────────────────────
 
 export class Redis {
   constructor(private readonly backend: RedisLike) {}

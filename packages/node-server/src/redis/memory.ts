@@ -1,6 +1,3 @@
-// Minimal in-memory Redis workalike for local dev and tests.
-// Implements only the commands the server uses.
-
 import type { RedisLike, RedisReply } from "./index.js";
 
 interface ZEntry {
@@ -10,7 +7,7 @@ interface ZEntry {
 
 export class MemoryRedis implements RedisLike {
   private kv = new Map<string, string | string[] | Map<string, string> | Set<string> | ZEntry[]>();
-  private ttls = new Map<string, number>(); // key -> expiresAt epoch ms
+  private ttls = new Map<string, number>();
 
   private alive(key: string): string | string[] | Map<string, string> | Set<string> | ZEntry[] | undefined {
     const expiry = this.ttls.get(key);
@@ -80,7 +77,6 @@ export class MemoryRedis implements RedisLike {
         return n || (args.length - 1) / 2;
       }
       case "HMSETEX": {
-        // args: key, ttlSec, field, value, ...
         let h = this.alive(key);
         if (!(h instanceof Map)) h = new Map();
         for (let i = 2; i + 1 < args.length; i += 2) h.set(args[i]!, args[i + 1]!);
@@ -90,7 +86,6 @@ export class MemoryRedis implements RedisLike {
         return 1;
       }
       case "ZWINDOW": {
-        // args: key, nowMs, member, windowMs
         const now = Number(args[1]);
         const windowMs = Number(args[3]);
         let z = this.alive(key) as ZEntry[] | undefined;

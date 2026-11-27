@@ -174,7 +174,6 @@ export async function runNodeGitPack(
     if (!fromStrata && nodeId && service === "git-upload-pack") {
       await syncFromNode(callNode, nodeId, repo, repoDir);
     }
-    // Initialize a bare repo if the directory isn't already a valid git repo.
     if (!fs.existsSync(path.join(repoDir, "HEAD")) || !fs.existsSync(path.join(repoDir, "objects"))) {
       await runGit(["init", "--bare", repoDir], tmpRoot, Buffer.alloc(0)).catch(() => {});
     }
