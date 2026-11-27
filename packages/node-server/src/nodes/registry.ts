@@ -401,6 +401,14 @@ export class NodeRegistry {
     return [];
   }
 
+  async clearGitRepo(owner: string, repo: string): Promise<void> {
+    const old = await this.listGitFiles(owner, repo);
+    for (const p of old) {
+      await this.redis.del(`gitfile:${owner}:${repo}:${p}`).catch(() => 0);
+    }
+    await this.redis.del(`gitfiles:${owner}:${repo}`).catch(() => 0);
+  }
+
   async setTelegramChat(chatId: number, account: string): Promise<void> {
     await this.redis.set(`tg:chat:${chatId}`, account);
   }

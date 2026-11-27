@@ -54,6 +54,8 @@ async function syncFromStrata(registry: NodeRegistry, owner: string, repo: strin
 }
 
 async function syncToStrata(registry: NodeRegistry, owner: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
+  // Clear stale files from a previous (possibly partial) sync.
+  await registry.clearGitRepo(owner, repo).catch(() => {});
   const paths: string[] = [];
   async function walk(dir: string, prefix: string) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
