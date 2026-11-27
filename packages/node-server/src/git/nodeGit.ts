@@ -55,21 +55,21 @@ async function syncFromStrata(registry: NodeRegistry, owner: string, repo: strin
 
 async function syncToStrata(registry: NodeRegistry, owner: string, repo: string, localDir: string, relPrefix = ""): Promise<void> {
   const paths: string[] = [];
-  function walk(dir: string, prefix: string) {
+  async function walk(dir: string, prefix: string) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const e of entries) {
       const rel = prefix === "" ? e.name : `${prefix}/${e.name}`;
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
-        walk(full, rel);
+        await walk(full, rel);
       } else {
         const data = fs.readFileSync(full);
-        void registry.setGitFile(owner, repo, rel, data.toString("base64"));
+        await registry.setGitFile(owner, repo, rel, data.toString("base64"));
         paths.push(rel);
       }
     }
   }
-  walk(localDir, "");
+  await walk(localDir, "");
   await registry.setGitFileList(owner, repo, paths);
 }
 
