@@ -198,6 +198,7 @@ export function makeGitHttpHandlers(deps: ApiDeps) {
       if (body === null) return ctx.json(413, { error: "payload too large" });
       try {
           const out = await runNodeGitPack(callNode, nodeId, repo, "git-receive-pack", body, registry, owner);
+         console.error("[dbg] receive-pack output:", out.toString("utf8").slice(0, 500).replace("\\n", " | "));
          ctx.setHeader("Cache-Control", "no-cache");
          ctx.raw(200, "application/x-git-receive-pack-result", out);
        } catch (e) {
